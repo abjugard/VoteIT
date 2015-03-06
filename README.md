@@ -4,7 +4,7 @@ Voting website hosted on a node.js server
 Created by Robin Sveningson, styrIT14/15.
 
 
-## Basic concept
+### Basic concept
 
 See file 'abstract.txt'.
 
