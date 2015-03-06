@@ -1,0 +1,5 @@
+/Server/node_modules/*
+*.log
+*.txt
+.ds_store
+*.ds_store

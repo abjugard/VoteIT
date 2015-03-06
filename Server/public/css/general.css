@@ -1,0 +1,24 @@
+button {
+	margin-left: 2px;
+	margin-right: 2px;
+}
+
+.centeredWrapper {
+  	position: absolute;
+	width: 800px;
+	display: table;
+    margin: auto;
+    padding: 40px;
+  	top: 0; left: 0; bottom: 0; right: 0;;
+}
+.centeredText {
+	text-align: center;
+}
+
+#flash {
+	width: 100%;
+	height: 30px;
+	position: absolute;
+	bottom: -10px;
+	margin-left: -40px;
+}
