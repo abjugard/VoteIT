@@ -1,3 +1,9 @@
+
+OBS! Detta dokument existerar endast temporärt, fram tills dess att ett snyggare och mer detaljerat dokument har tagits fram.
+
+
+
+
 **Inloggning/anslutning**
 
 Koder genereras i terminalen som överlever i en 'session', dvs. så länge som servern lever. Server-admin väljer antalet koder som ska genereras. Access.txt skapas med ‘utklippsvänliga’ remsor med en kod på varje rad. Deltagarna får varsin kod på en lapp. Koder nollställs alltså varje gång man stänger av servern (funktionalitet för att återskapa koder från Access.txt borde införas ifall servern krashar osv.).
