@@ -15,7 +15,7 @@
 					if(answers.indexOf(',') > 0)
 						answers = answers.split(',');
 				    for(var i = answers.length - 1; i >= 0; i--)
-				    	$('<h5 class='answer centeredText'>' + answers[i] + ' (' + (i+1) + ')</h5>').insertAfter('#question');
+				    	$('<h5 class=\'answer centeredText\'>' + answers[i] + ' (' + (i+1) + ')</h5>').insertAfter('#question');
 				    givenAnswers = [];
 				    $('button').prop('disabled', false);
 				    updateButtons();
