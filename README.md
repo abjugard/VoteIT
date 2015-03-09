@@ -4,6 +4,11 @@ Voting website hosted on a node.js server
 Created by Robin Sveningson, styrIT14/15.
 
 
+### Basic concept
+
+See file 'abstract.txt'.
+
+
 ### How to run
 
 1. Clone repository
