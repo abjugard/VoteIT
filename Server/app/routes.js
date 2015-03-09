@@ -7,7 +7,7 @@ module.exports = function(app, passport) {
 	});
 
 	app.get('/vote', function(req, res) {
-		res.send("Access denied.");
+		res.send('Access denied.');
 	});
 
 	app.post('/', function(req, res){
@@ -15,7 +15,7 @@ module.exports = function(app, passport) {
 		var code = req.body.access.code;
 		var index = server.validate(code);
 		if(index >= 0) {
-			console.log("Login with index: " + (index+1));
+			console.log('Login with index: ' + (index+1));
 			if(server.questionExists()) {
 				var parameters = server.getQuestionParameters();
 				console.log(parameters[1].length);
@@ -34,16 +34,16 @@ module.exports = function(app, passport) {
 		var answers = req.body.answers;
 
 		for(var i = 0; i < answers.length; i++)
-			console.log("a: " + answers[i]);
+			console.log('a: ' + answers[i]);
 		
 		if(server.validate(code) >= 0) {
 			if(server.codeAnsweredQuestion()) {
-				res.end("anweredError");
+				res.end('anweredError');
 			} else if(server.validAnswers(answers)) {
 				server.register(code, answers);
-				res.end("success");	
+				res.end('success');	
 			} else {
-				res.end("corruptError")
+				res.end('corruptError')
 			}
 		} else
 			res.render('index.ejs', {

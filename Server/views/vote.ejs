@@ -1,28 +1,28 @@
 <html>
 	<head>
 		<title>Vote</title>
-		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
-		<link rel="stylesheet" href="../../public/css/general.css">
+		<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css'>
+		<link rel='stylesheet' href='../../public/css/general.css'>
 
-		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
-		<script src="/socket.io/socket.io.js"></script>
+		<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
+		<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js'></script>
+		<script src='/socket.io/socket.io.js'></script>
 		<% if (accessCode) { %>
 		     <script>
 				function initQuestion() {
-					$(".answer").remove();
-					$("#question").html(question);
-					if(answers.indexOf(",") > 0)
-						answers = answers.split(",");
+					$('.answer').remove();
+					$('#question').html(question);
+					if(answers.indexOf(',') > 0)
+						answers = answers.split(',');
 				    for(var i = answers.length - 1; i >= 0; i--)
-				    	$("<h5 class='answer centeredText'>" + answers[i] + " (" + (i+1) + ")</h5>").insertAfter("#question");
+				    	$('<h5 class='answer centeredText'>' + answers[i] + ' (' + (i+1) + ')</h5>').insertAfter('#question');
 				    givenAnswers = [];
 				    $('button').prop('disabled', false);
 				    updateButtons();
 				}
 				function clearQuestion() {
-					$("#question").html("Väntar på fråga...");
-					$(".answer").remove();
+					$('#question').html('Väntar på fråga...');
+					$('.answer').remove();
 					question = null;
 					answers = null;
 					numberOfRequired = null;
@@ -34,64 +34,64 @@
 				}
 				var flashBusy = false;
 				function flashMessage(msg) {
-					$("#flash").html(msg);
+					$('#flash').html(msg);
 					if(!flashBusy) {
 						flashBusy = true;
-						$("#flash").show();
+						$('#flash').show();
 						setTimeout(clearFlashMessage, 2000);
 					}
 				}
 				function clearFlashMessage() {
-					$("#flash").hide();
+					$('#flash').hide();
 					flashBusy = false;
 				}
 				function hasQuestion() {
 					return question != null && question != '' && answers != null && numberOfRequired != null && blankIndex != null && vacantIndex != null;
 				}
 				function displayAnswers() {
-					var a = "";
+					var a = '';
 					for(var i = 0; i < givenAnswers.length; i++) {
 						if(i != givenAnswers.length - 1)
-							a += answers[givenAnswers[i]] + ", ";
+							a += answers[givenAnswers[i]] + ', ';
 						else
 							a += answers[givenAnswers[i]];
 					}
-					if(a == "")
-						flashMessage("Inga svar registrerade.");
+					if(a == '')
+						flashMessage('Inga svar registrerade.');
 					else
-						flashMessage("Svar: " + a);
+						flashMessage('Svar: ' + a);
 					updateButtons();
 				}
 				function clearAnswers() {
 					givenAnswers = [];
-					flashMessage("Svaren är nollställda.")
+					flashMessage('Svaren är nollställda.')
 					updateButtons();
 				}
 				function postAnswer() {
 					if(givenAnswers.length == numberOfRequired) {
 						$.post('vote', { accessCode: code, answers : givenAnswers}, function(returnedData){
-							if(returnedData == "success") {
+							if(returnedData == 'success') {
 								clearQuestion();
-								flashMessage("Svar registrerat!");
-							} else if(returnedData == "anweredError") {
+								flashMessage('Svar registrerat!');
+							} else if(returnedData == 'anweredError') {
 								clearQuestion();
-								flashMessage("Du har redan svarat på frågan.")
-							} else if(returnedData == "corruptError")
-								flashMessage("Korrupt svarsdata.");
+								flashMessage('Du har redan svarat på frågan.')
+							} else if(returnedData == 'corruptError')
+								flashMessage('Korrupt svarsdata.');
 						});
 					} else
-						flashMessage("Du har inte angivit tillräckligt många svar!");
+						flashMessage('Du har inte angivit tillräckligt många svar!');
 					updateButtons();
 				}
 				function updateButtons() {
 					if(numberOfRequired == null || numberOfRequired == -1 || !numberOfRequired)
-						$("#displayAnswers").html("Registrerade svar");
+						$('#displayAnswers').html('Registrerade svar');
 					else
-						$("#displayAnswers").html("Registrerade svar (" + givenAnswers.length + "/" + numberOfRequired + ")");
+						$('#displayAnswers').html('Registrerade svar (' + givenAnswers.length + '/' + numberOfRequired + ')');
 					if(givenAnswers.length == numberOfRequired)
-						$("#send").prop('disabled', false);
+						$('#send').prop('disabled', false);
 					else
-						$("#send").prop('disabled', true);
+						$('#send').prop('disabled', true);
 				}
 
 		        var code = '<%= accessCode %>';
@@ -104,7 +104,7 @@
 		        var givenAnswers = [];
 		     </script>
 		<% } %>
-		<script type="text/javascript">
+		<script type='text/javascript'>
 			var socket = io();
 			window.onkeypress = function(e) {
 				if(hasQuestion()) {
@@ -114,7 +114,7 @@
 							if(key != vacantIndex && key != blankIndex) {
 								for(var i = 0; i < givenAnswers.length; i++) {
 									if(givenAnswers[i] == key) {
-										flashMessage("Svaret har registrerats förut!");
+										flashMessage('Svaret har registrerats förut!');
 										updateButtons();
 										return;
 									}
@@ -122,10 +122,10 @@
 							}
 
 							givenAnswers[givenAnswers.length] = key;
-							flashMessage("Svar registrerat!");
+							flashMessage('Svar registrerat!');
 						}
 					} else
-						flashMessage("Alla svar är redan angivna!")
+						flashMessage('Alla svar är redan angivna!')
 				}
 				updateButtons();
 			};
@@ -151,14 +151,14 @@
 		</script>
 	</head>
 	<body>
-		<div class="centeredWrapper centeredText">
-			<h2 id="question">
+		<div class='centeredWrapper centeredText'>
+			<h2 id='question'>
 				Väntar på fråga...
 			</h2>
-			<button id="displayAnswers" type="button" class="btn btn-default btn-xs" onclick="displayAnswers()">Registrerade svar</button>
-			<button type="button" class="btn btn-danger btn-xs" onClick="clearAnswers()">Nollställ svar</button>
-			<button id="send" type="button" class="btn btn-success btn-xs" onClick="postAnswer()">Svara</button>
-			<p id="flash"></p>
+			<button id='displayAnswers' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
+			<button type='button' class='btn btn-danger btn-xs' onClick='clearAnswers()'>Nollställ svar</button>
+			<button id='send' type='button' class='btn btn-success btn-xs' onClick='postAnswer()'>Svara</button>
+			<p id='flash'></p>
 		</div>
 	</body>
 </html>

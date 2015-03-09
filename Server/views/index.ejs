@@ -2,28 +2,28 @@
 <html>
 	<head>
 		<title>VoteIT</title>
-		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
-		<link rel="stylesheet" href="../../public/css/general.css">
-		<script type="text/javascript">
+		<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css'>
+		<link rel='stylesheet' href='../../public/css/general.css'>
+		<script type='text/javascript'>
 		</script>
 	</head>
 	<body>
-		<!--<form method="post" action="/">
-			<input type="text" name="access[code]">
-		    <input type="submit" value="Submit">
+		<!--<form method='post' action='/'>
+			<input type='text' name='access[code]'>
+		    <input type='submit' value='Submit'>
 		</form>-->
-		<form action="/" method="post">
-			<div class="centeredWrapper">
+		<form action='/' method='post'>
+			<div class='centeredWrapper'>
 				<% if (message.length > 0) { %>
-					<div class="alert alert-danger" role="alert">
+					<div class='alert alert-danger' role='alert'>
 						<p><%= message %></p>
 					</div>
 				<% } %>
 				<h3>VoteIT</h3>
-				<div class="form-group">
-					<input type="password" class="form-control" name="access[code]" placeholder="Accesskod">
+				<div class='form-group'>
+					<input type='password' class='form-control' name='access[code]' placeholder='Accesskod'>
 				</div>
-				<button type="submit" class="btn btn-default">Anslut</button>
+				<button type='submit' class='btn btn-default'>Anslut</button>
 			</div>
 		</form>
 	</body>
