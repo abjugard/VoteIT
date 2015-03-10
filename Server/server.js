@@ -109,6 +109,7 @@ var parameterIndex = -1;
 //Used to store all parameters for a command
 var parameters = [];
 
+//Descides what to do with a string received from the console
 function initCommand(command) {
 	if(pendingCommand) {
 		if(command == 'yes')
@@ -320,6 +321,10 @@ var blankIndex = -1;
 var questionRunning = false;
 
 /* Method used to start a new question
+	
+	OBS! The 'vacant' and 'blanc' alternative are added by this method to the answers array, so that the GUI
+	can present all answers without having to add the Vacant and Blanc option itself.
+
 	q = the question string
 	a = all the answers in an array
 	n = number of required answers
