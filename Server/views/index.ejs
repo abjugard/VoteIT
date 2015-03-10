@@ -1,19 +1,26 @@
+<!-- 
+	VoteIT (https://github.com/cthit/VoteIT)
+	Created by Robin Sveningson, styrIT14/15
+-->
+
 <!doctype html>
 <html>
 	<head>
 		<title>VoteIT</title>
+
+		<!-- Stylesheets -->
 		<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css'>
 		<link rel='stylesheet' href='../../public/css/general.css'>
+
+		<!-- Scripts -->
 		<script type='text/javascript'>
 		</script>
 	</head>
 	<body>
-		<!--<form method='post' action='/'>
-			<input type='text' name='access[code]'>
-		    <input type='submit' value='Submit'>
-		</form>-->
+		<!-- Access code form -->
 		<form action='/' method='post'>
 			<div class='centeredWrapper'>
+				<!-- If there exists a message, it's an access denied message. -->
 				<% if (message.length > 0) { %>
 					<div class='alert alert-danger' role='alert'>
 						<p><%= message %></p>

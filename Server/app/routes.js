@@ -1,5 +1,8 @@
-module.exports = function(app, passport) {
-	//Index
+/* 	VoteIT (https://github.com/cthit/VoteIT)
+	Created by Robin Sveningson, styrIT14/15  */
+
+//Export function so server.js can use it
+module.exports = function(app) {
 	app.get('/', function(req, res) {
 		res.render('index.ejs', {
 			message : ''
@@ -13,6 +16,7 @@ module.exports = function(app, passport) {
 	app.post('/', function(req, res){
 		var server = require('../server');
 		var code = req.body.access.code;
+
 		var index = server.validate(code);
 		if(index >= 0) {
 			console.log('Login with index: ' + (index+1));

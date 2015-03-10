@@ -1,25 +1,68 @@
+<!-- 
+	VoteIT (https://github.com/cthit/VoteIT)
+	Created by Robin Sveningson, styrIT14/15
+-->
+
 <html>
 	<head>
 		<title>Vote</title>
+
+		<!-- Stylesheets -->
 		<link rel='stylesheet' href='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css'>
 		<link rel='stylesheet' href='../../public/css/general.css'>
 
+		<!-- Scripts -->
 		<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
 		<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js'></script>
 		<script src='/socket.io/socket.io.js'></script>
+
+		<!-- If there exists an accessCode (doesn't have to be valid though). -->
 		<% if (accessCode) { %>
 		     <script>
+		     	/* The access code. Is sent as a parameter in all post requests. */
+		        var code = '<%= accessCode %>';
+
+		     	/* Variables used to store the data recieved from the socket conenction.
+		     		The data has all the information regarding the current question. */
+		        var question = '<%= question %>'; // The question string
+		        var answers = '<%= answers %>'; // All the possible answers
+		        var numberOfRequired = '<%= numberOfRequired %>'; // How many answers the server requires
+		        var vacantIndex = '<%= vacantIndex %>'; // -1 if vacants are disabled, else the index of the 'vacant' string in the answers list
+		        var blankIndex = '<%= blankIndex %>'; // -1 if blanks are disabled, else the index of the 'blank' string in the answers list
+
+		        /* All the answers the user has registered via key presses. */
+		        var givenAnswers = [];
+
+		        /* Checks if there is currently a visible flash message. */
+		        var flashBusy = false;
+
+		        /* Initializes a socket connection to the server. */
+				var socket = io();
+
+		     	/*	Displays a new question to the user.
+		     		Assumes: question, answers, numberOfRequired, vacantIndex and blankIndex contains data regarding the current question.
+		     	*/
 				function initQuestion() {
+					/* Removes all paragraphs used to display answers. We don't want to use the clearQuestion() before initQuestion()
+					 	because we don't want the user to see the text 'Väntar på fråga...' flashing by before the next question is displayed. */
 					$('.answer').remove();
+
 					$('#question').html(question);
+
+					/* When answers are sent via JSON (in the scenario where there exists a question when a user logins, and the question data
+		     			is sent as redirect parameters) then the list of answers will be a string, and we must therefore split it by commas.
+						The server must make sure no commas are used in any of the answers. */
 					if(answers.indexOf(',') > 0)
 						answers = answers.split(',');
+
 				    for(var i = answers.length - 1; i >= 0; i--)
 				    	$('<h5 class=\'answer centeredText\'>' + answers[i] + ' (' + (i+1) + ')</h5>').insertAfter('#question');
 				    givenAnswers = [];
 				    $('button').prop('disabled', false);
 				    updateButtons();
 				}
+
+				/*	Clears a currently visible question. */
 				function clearQuestion() {
 					$('#question').html('Väntar på fråga...');
 					$('.answer').remove();
@@ -32,22 +75,32 @@
 					$('button').prop('disabled', true);
 					updateButtons();
 				}
-				var flashBusy = false;
+
+				/* Displays a flash message to the user. */
 				function flashMessage(msg) {
+					//Change message
 					$('#flash').html(msg);
+
+					//If busy, then don't create another timeout
 					if(!flashBusy) {
 						flashBusy = true;
 						$('#flash').show();
 						setTimeout(clearFlashMessage, 2000);
 					}
 				}
+
+				/* Removes a currently visible flash message. */
 				function clearFlashMessage() {
 					$('#flash').hide();
 					flashBusy = false;
 				}
+
+				/* Checks if there exists a question. */
 				function hasQuestion() {
 					return question != null && question != '' && answers != null && numberOfRequired != null && blankIndex != null && vacantIndex != null;
 				}
+
+				/* Used to display all the answers the user has given in a flash message. This method is called by a button in the GUI. */
 				function displayAnswers() {
 					var a = '';
 					for(var i = 0; i < givenAnswers.length; i++) {
@@ -62,11 +115,15 @@
 						flashMessage('Svar: ' + a);
 					updateButtons();
 				}
+
+				/* Used to clear all the given answers. This method is called by a button in the GUI. */
 				function clearAnswers() {
 					givenAnswers = [];
 					flashMessage('Svaren är nollställda.')
 					updateButtons();
 				}
+
+				/* The method used to post all the given answers to the server. This method is called by a button in the GUI. */
 				function postAnswer() {
 					if(givenAnswers.length == numberOfRequired) {
 						$.post('vote', { accessCode: code, answers : givenAnswers}, function(returnedData){
@@ -74,81 +131,86 @@
 								clearQuestion();
 								flashMessage('Svar registrerat!');
 							} else if(returnedData == 'anweredError') {
+								//The access code has already given an answer to this question.
 								clearQuestion();
 								flashMessage('Du har redan svarat på frågan.')
 							} else if(returnedData == 'corruptError')
+								//Should never happen unless user changes the frontend code.
 								flashMessage('Korrupt svarsdata.');
 						});
 					} else
 						flashMessage('Du har inte angivit tillräckligt många svar!');
 					updateButtons();
 				}
+
+				/* Enables/disables the send button. Updates the given answers counter on the displayAnswers button. */
 				function updateButtons() {
 					if(numberOfRequired == null || numberOfRequired == -1 || !numberOfRequired)
 						$('#displayAnswers').html('Registrerade svar');
 					else
 						$('#displayAnswers').html('Registrerade svar (' + givenAnswers.length + '/' + numberOfRequired + ')');
+
 					if(givenAnswers.length == numberOfRequired)
 						$('#send').prop('disabled', false);
 					else
 						$('#send').prop('disabled', true);
 				}
 
-		        var code = '<%= accessCode %>';
-		        var question = '<%= question %>';
-		        var answers = '<%= answers %>';
-		        var numberOfRequired = '<%= numberOfRequired %>';
-		        var vacantIndex = '<%= vacantIndex %>';
-		        var blankIndex = '<%= blankIndex %>';
-
-		        var givenAnswers = [];
-		     </script>
-		<% } %>
-		<script type='text/javascript'>
-			var socket = io();
-			window.onkeypress = function(e) {
-				if(hasQuestion()) {
-					if(givenAnswers.length < numberOfRequired) {
-						var key = e.keyCode - 49;
-						if(key >= 0 && key < answers.length) {
-							if(key != vacantIndex && key != blankIndex) {
-								for(var i = 0; i < givenAnswers.length; i++) {
-									if(givenAnswers[i] == key) {
-										flashMessage('Svaret har registrerats förut!');
-										updateButtons();
-										return;
+				/* Takes care of all the keypresses for given answers. */
+				window.onkeypress = function(e) {
+					if(hasQuestion()) {
+						if(givenAnswers.length < numberOfRequired) {
+							//49 = key '1'
+							//This logic should be changed to be more generic and allow more keys than 1-9 (Must also change backend though).
+							var key = e.keyCode - 49;
+							if(key >= 0 && key < answers.length) {
+								//Vacants and blanks can be registered several times.
+								if(key != vacantIndex && key != blankIndex) {
+									for(var i = 0; i < givenAnswers.length; i++) {
+										if(givenAnswers[i] == key) {
+											flashMessage('Svaret har registrerats förut!');
+											updateButtons();
+											return;
+										}
 									}
 								}
-							}
 
-							givenAnswers[givenAnswers.length] = key;
-							flashMessage('Svar registrerat!');
-						}
-					} else
-						flashMessage('Alla svar är redan angivna!')
-				}
-				updateButtons();
-			};
-			window.onload = function(e) {
-				if(hasQuestion())
-					initQuestion();
-				else {
+								givenAnswers[givenAnswers.length] = key;
+								flashMessage('Svar registrerat!');
+							}
+						} else
+							flashMessage('Alla svar är redan angivna!')
+					}
 					updateButtons();
-					$('button').prop('disabled', true);
+				};
+
+				/* Initialize a question once the DOM objects are loaded. */
+				window.onload = function(e) {
+					if(hasQuestion())
+						initQuestion();
+					else {
+						updateButtons();
+						$('button').prop('disabled', true);
+					}
 				}
-			}
-			socket.on('new question', function(msg){
-				question = msg.question;
-				answers = msg.answers;
-				numberOfRequired = msg.numberOfRequired;
-				vacantIndex = msg.vacantIndex;
-				blankIndex = msg.blankIndex;
-				if(hasQuestion())
-			    	initQuestion();
-			    else
-			    	clearQuestion();
-			});
-		</script>
+
+				/* Handle incoming socket messages. */
+				socket.on('new question', function(msg){
+					question = msg.question;
+					answers = msg.answers;
+					numberOfRequired = msg.numberOfRequired;
+					vacantIndex = msg.vacantIndex;
+					blankIndex = msg.blankIndex;
+
+					if(hasQuestion())
+						//If the message contained a new question
+				    	initQuestion();
+				    else
+				    	//If the message contained an empty question
+				    	clearQuestion();
+				});
+		     </script>
+		<% } %>
 	</head>
 	<body>
 		<div class='centeredWrapper centeredText'>
