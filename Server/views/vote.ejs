@@ -13,25 +13,23 @@
 
 		<!-- Scripts -->
 		<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
+	    <script src="http://malsup.github.com/jquery.form.js"></script> 
 		<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js'></script>
 		<script src='/socket.io/socket.io.js'></script>
 
 		<!-- If there exists an accessCode (doesn't have to be valid though). -->
 		<% if (accessCode) { %>
 		     <script>
-		     	/* Response from a POST request. Response should be an empty string if the user just got redirected from index.ejs. */
-		     	var response = '<%= response %>';
-
 		     	/* The access code. Is sent as a parameter in all post requests. */
 		        var code = '<%= accessCode %>';
 
 		     	/* Variables used to store the data recieved from the socket conenction.
 		     		The data has all the information regarding the current question. */
-		        var question = '<%= question %>'; // The question string
-		        var answers = '<%= answers %>'; // All the possible answers
-		        var numberOfRequired = '<%= numberOfRequired %>'; // How many answers the server requires
-		        var vacantIndex = '<%= vacantIndex %>'; // -1 if vacants are disabled, else the index of the 'vacant' string in the answers list
-		        var blankIndex = '<%= blankIndex %>'; // -1 if blanks are disabled, else the index of the 'blank' string in the answers list
+		        var question = ''; // The question string
+		        var answers = []; // All the possible answers
+		        var numberOfRequired = 0; // How many answers the server requires
+		        var vacantIndex = -1; // -1 if vacants are disabled, else the index of the 'vacant' string in the answers list
+		        var blankIndex = -1; // -1 if blanks are disabled, else the index of the 'blank' string in the answers list
 
 		        /* All the answers the user has registered via key presses. */
 		        var givenAnswers = [];
@@ -176,7 +174,27 @@
 
 				/* Initialize a question once the DOM objects are loaded. */
 				window.onload = function(e) {
-					handleResponse();
+					$('#voteForm').ajaxForm({
+				        url: '/', // or whatever
+				        dataType: 'json',
+				        success: function (response) {
+				            var result = response.result;
+							if(result == 'success') {
+								clearQuestion();
+								flashMessage('Svaret har mottagits av servern!');
+							} else if(result == 'anweredError') {
+								//The access code has already given an answer to this question.
+								clearQuestion();
+								flashMessage('Du har redan svarat på frågan.')
+							} else if(result == 'corruptError') {
+								//Should never happen unless user changes the frontend code.
+								flashMessage('Korrupt svarsdata.');
+							} else if(result == 'codeError') {
+								$(document.body).html('Access denied.');
+							}
+				        }
+				    });
+
 					if(hasQuestion())
 						initQuestion();
 					else {
@@ -193,6 +211,8 @@
 					vacantIndex = msg.vacantIndex;
 					blankIndex = msg.blankIndex;
 
+					$('#voteWrapper').css('display', 'table');
+
 					if(hasQuestion())
 						//If the message contained a new question
 				    	initQuestion();
@@ -200,32 +220,15 @@
 				    	//If the message contained an empty question
 				    	clearQuestion();
 				});
-
-				/* If response exists, determine what to do with it. */
-				function handleResponse() {
-					if(response && response != '') {
-						if(response == 'success') {
-							clearQuestion();
-							flashMessage('Svaret har mottagits av servern!');
-						} else if(response == 'anweredError') {
-							//The access code has already given an answer to this question.
-							clearQuestion();
-							flashMessage('Du har redan svarat på frågan.')
-						} else if(response == 'corruptError') {
-							//Should never happen unless user changes the frontend code.
-							flashMessage('Korrupt svarsdata.');
-						}
-					}
-				}
 		     </script>
 		<% } %>
 	</head>
 	<body>
-		<div class='centeredWrapper centeredText'>
+		<div id='voteWrapper' class='centeredWrapper centeredText'>
 			<h2 id='question'>
 				Väntar på fråga...
 			</h2>
-			<form action='/' method='post' onsubmit='return postAnswer()'>
+			<form id='voteForm' action='/' method='post' onsubmit='return postAnswer()'>
 				<button id='displayAnswers' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
 				<button type='button' class='btn btn-danger btn-xs' onClick='clearAnswers()'>Nollställ svar</button>
 				<button id='send' type='submit' onsubmit='return postAnswer()' class='btn btn-success btn-xs'>Svara</button>

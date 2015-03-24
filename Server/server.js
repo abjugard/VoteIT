@@ -48,6 +48,7 @@ var io = require('socket.io')(server);
 //Handle socket events
 io.on('connection', function(socket){
 	console.log('Socket connection established.');
+	socket.emit('new question', { question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex });
 	socket.on('disconnect', function(){
 		console.log('Socket connection closed.');
 	});
@@ -67,7 +68,7 @@ console.log('Server running on port 8080...');
 
 //Initialize stdin
 stdin.addListener('data', function(d) {
-	initCommand(d.toString().substring(0, d.length-1));
+	handleInput(d.toString().substring(0, d.length-1));
 });
 
 
@@ -103,82 +104,212 @@ function msg(msg) {
 	console.log('>>> ' + msg);
 }
 
-//Available commands.
+function error(str, host) {
+	msg('ERROR in ' + host + '. ' +  str);
+	process.exit(1);
+}
+
+/*function Question(question, answers, numberOfRequired, vacant, blank) {
+	this.question = question;
+	this.answers = answers;
+	this.numberOfRequired = numberOfRequired;
+	this.vacant = vacant;
+	this.blank = blank;
+}
+
+var q = new Question("test", 2, true, true);
+console.log("Question: ", q);*/
+
+function Command(command, parameters, execute) {
+	if(!command || !isString(command))
+		error('Command must be a string.', 'Command construction');
+	if(!parameters || !isArrayOfType(parameters, Parameter))
+		error('Parameters must be an array of the Parameter type.', 'Command construction');	
+	if(!execute || !isFunction(execute))
+		error('Execute must be a function.', 'Command construction');	
+
+	this.command = command;
+	this.parameters = parameters;
+	this.execute = execute;
+}
+
+function Parameter(promptQuestion, check) {
+	if(!promptQuestion || !isString(promptQuestion))
+		error('PromptQuestion must be a string.', 'Parameter construction');
+	if(check && !isFunction(check))
+		error('Check must be a function.', 'Parameter construction')
+
+	this.promptQuestion = promptQuestion;
+	if(!check)
+		this.check = function() { return true; };
+	else 
+		this.check = check;
+}
+
+//Check if 'x' is numeric
+function stringIsInteger(s) {
+  return !isNaN(parseInt(s)) && isFinite(s);
+}
+
+function stringIsBoolean(s) {
+	if(s == "yes" || s == "no")
+		return true;
+	else
+		return false;
+}
+
+function isString(x) {
+	return typeof x == 'string' || x instanceof String;
+}
+
+function isFunction(x) {
+	return typeof(x) == 'function';
+}
+
+function getCheckDescription(check) {
+	if(check == stringIsInteger)
+		return 'is not an integer';
+	else if(check == stringIsBoolean)
+		return 'is not a boolean';
+	else
+		return '[no description]';
+}
+
+function getBooleanFromString(s) {
+	if(s == "yes")
+		return true;
+	else
+		return false;
+}
+
+function isArrayOfType(array, type) {
+	if(array.constructor === Array) {
+		if(array.length > 0)
+			return array[0] instanceof type;
+		else
+			return true;
+	}
+	return false;
+}
+
 var commands = [
+	new Command('question', [
+		new Parameter('Enter question:'),
+		new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
+		new Parameter('Enter number of required parameters:', stringIsInteger),
+		new Parameter('Enable vacant?', stringIsBoolean),
+		new Parameter('Enable blanks?', stringIsBoolean)
+	], startQuestion),
+	new Command('initialize', [
+		new Parameter('Enter number of access codes to be generated:', stringIsInteger)
+	], initialize),
+	new Command('close question', [], closeQuestion)
+];
+
+/*var commands = [
 	['question', 'Enter question:', 'Enter answers separated by comma (without vacant and/or blanks):', 'Enter number of required parameters:', 'Enable vacant?', 'Enable blanks?'],
 	['initialize', 'Enter number of access codes to be generated:'],
 	['close question']
-];
+];*/
+
 //Used to confirm the execution of commands
 var pendingCommand = false;
 //Used to keep track of which command is pending
-var commandIndex = -1;
-//Used to keep track of which parameter is being asked for in the console
-var parameterIndex = -1;
+var currentCommand = null;
 //Used to store all parameters for a command
 var parameters = [];
+var parameterIndex = -1;
+
+
+function hasCommandParameter() {
+	return parameterIndex < currentCommand.parameters.length;
+}
+
+function getCommandParameter() {
+	if(!hasCommandParameter())
+		return null;
+	return currentCommand.parameters[parameterIndex].promptQuestion;
+}
+
+function clearCommandData() {
+	currentCommand = null;
+	pendingCommand = false;
+	parameters = [];
+	parameterIndex = -1;
+}
+
+function abortCommand(reason) {
+	clearCommandData();
+	if(reason)
+		msg('Command aborted because ' + reason + '.');
+	else
+		msg('Command aborted.');
+}
+
+function addParameter(value) {
+	if(currentCommand.parameters[parameterIndex].check(value)) {
+		parameters[parameterIndex] = value;
+		parameterIndex++;
+		return true;
+	} else {
+		abortCommand('parameter ' + getCheckDescription(currentCommand.parameters[parameterIndex].check));
+		return false;
+	}
+}
 
 //Descides what to do with a string received from the console
-function initCommand(command) {
+function handleInput(input) {
 	if(pendingCommand) {
-		if(command == 'yes')
-			executeCommand();
-		else
-			msg('Command aborted.');
+		if(stringIsBoolean(input) && getBooleanFromString(input)) {
+			currentCommand.execute(parameters);
+			clearCommandData();
+		} else
+			abortCommand();
 
-		commandIndex = -1;
-		parameterIndex = -1;
-		pendingCommand = false;
-		parameters = [];
 	} else {
-		if(commandIndex == -1) {
+		if(!currentCommand) {
 			for(var i = 0; i < commands.length; i++) {
-				if(commands[i][0] == command) {
-					commandIndex = i;
+				if(commands[i].command == input) {
+					currentCommand = commands[i];
 					parameterIndex = 0;
-					if(commands[i].length > 1)
-						msg(commands[i][1]);
+					if(hasCommandParameter())
+						msg(getCommandParameter());
 					else {
 						pendingCommand = true;
-						msg('Do you really want to execute command: \'' + commands[commandIndex][0] + '\'?');
+						msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
 					}
 
 					return;
 				}
 			}
-			if(commandIndex == -1)
+			if(!currentCommand)
 				msg('Invalid command.');
 		} else {
-			if(command == 'abort') {
-				msg('Command aborted.');
-				commandIndex = -1;
-				parameterIndex = -1;
-				pendingCommand = false;
-				parameters = [];
-			} else if(parameterIndex == commands[commandIndex].length - 2) {
-				parameters[parameterIndex] = command;
-				pendingCommand = true;
-				msg('Do you really want to execute command: \'' + commands[commandIndex][0] + '\'?');
+			if(input == 'abort')
+				abortCommand();
+			/*else if(!hasCommandParameter()) {
+				if(addParameter(input)) {
+					pendingCommand = true;
+					msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+				}
 			} else {
-				parameters[parameterIndex] = command;
-				parameterIndex++;
-				if(parameterIndex < commands[commandIndex].length - 1)
-					msg(commands[commandIndex][parameterIndex+1]);
+				if(addParameter(input)) {
+					if(hasCommandParameter())
+						msg(getCommandParameter());
+				}
+			}*/
+			else {
+				if(addParameter(input)) {
+					if(hasCommandParameter())
+						msg(getCommandParameter());
+					else {
+						pendingCommand = true;
+						msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+					}
+				}
 			}
 		}
 	}
-}
-
-//Execute the current pending command
-function executeCommand() {
-	// THIS CODE MUST BE CHANGED TO BE MORE GENERIC. This is just a temporary code
-	var commandString = commands[commandIndex][0];
-	if(commandString == 'initialize' && parameters.length == 1)
-		initialize(parameters[0]);
-	else if(commandString == 'question' && parameters.length == 5)
-		startQuestion(parameters[0], parameters[1], parameters[2], parameters[3], parameters[4]);
-	else if(commandString == 'close question' && parameters.length == 0)
-		endQuestion(true);
 }
 
 //All accessCodes that currently exists
@@ -189,7 +320,9 @@ var values = [
 ];
 
 //Initialize n accessCodes
-function initialize(n) {
+function initialize(parameters) {
+	var n = parameters[0];
+
 	msg('Initializing vote server for ' + n + ' participants...');
 	msg('Generating codes...');
 
@@ -301,18 +434,13 @@ function checkValidAnswers(givenAnswers) {
 
 	for(var i = 0; i < givenAnswers.length; i++) {
 		var answer = givenAnswers[i];
-		if(!isNumeric(givenAnswers[i]) || givenAnswers[i] < 0 || givenAnswers[i] >= answers.length ||
+		if(!stringIsInteger(givenAnswers[i]) || givenAnswers[i] < 0 || givenAnswers[i] >= answers.length ||
 			i != vacantIndex && i != blankIndex && tempArray[givenAnswers[i]])
 			return false;
 		tempArray[givenAnswers[i]] = true;
 	}
 
 	return true;
-}
-
-//Check if 'i' is numeric
-function isNumeric(i) {
-  return !isNaN(parseFloat(i)) && isFinite(i);
 }
 
 //Checks if the code has already been used to answer the question
@@ -348,9 +476,11 @@ var questionRunning = false;
 	v = vacant parameter
 	n = blank parameter
 */
-function startQuestion(q, a, n, v, b) {
+function startQuestion(parameters) {
+	var a = parameters[1].split(',');
+
 	//Should be remaked to allow more answers
-	if(n > 9) {
+	if(a.length > 9) {
 		msg('Number of required answers can\'t be greater than 9.');
 		msg('No question created.');
 		return;
@@ -359,21 +489,21 @@ function startQuestion(q, a, n, v, b) {
 	if(questionRunning)
 		endQuestion(false);
 
-	question = q;
-	possibleAnswers = a.split(',');
-	numberOfRequired = n;
+	question = parameters[0];
+	possibleAnswers = a;
+	numberOfRequired = parameters[2];
 
-	//Should be replaced in the future when parameters are more generic
-	if(v == 'yes') {
+	if(getBooleanFromString(parameters[3])) {
 		var i = possibleAnswers.length;
 		possibleAnswers[i] = 'Vakant';
-		vacantIndex = i
+		vacantIndex = i;
 	} else
 		vacantIndex = -1;
-	if(b == 'yes') {
+
+	if(getBooleanFromString(parameters[4])) {
 		var i = possibleAnswers.length;
 		possibleAnswers[i] = 'Blank';
-		blankIndex = i
+		blankIndex = i;
 	} else
 		blankIndex = -1;
 
@@ -383,6 +513,10 @@ function startQuestion(q, a, n, v, b) {
 	//Send question via the socket connection
 	io.emit('new question', { question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex });
 	msg('Created new question!');
+}
+
+function closeQuestion() {
+	endQuestion(true);
 }
 
 /* Method used to end a question
@@ -428,8 +562,8 @@ function calculateTotal() {
 }
 
 //Temporary. For debugging only.
-initialize(10);
-startQuestion("Lorum ipsum dolor sit?", "a,b,c", 2, true, true);
+initialize([10]);
+//startQuestion(["Lorum ipsum dolor sit?", "a,b,c", 2, true, true]);
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';
