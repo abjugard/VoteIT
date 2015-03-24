@@ -13,14 +13,14 @@ var sys = require('sys');
 //Used to read console data
 var stdin = process.openStdin();
 //Used to log information about GET/POST requests
-var morgan = require('morgan');
+//var morgan = require('morgan');
 //Used to parse the body of incoming POST requests (to retrieve data from forms)
 var bodyParser = require('body-parser');
 //Used to prevent the server from crashing on request overloading
 var toobusy = require('toobusy');
 
 //Initialize morgan
-app.use(morgan('dev'));
+//app.use(morgan('dev'));
 //Inititalize bodyParser
 app.use(bodyParser()); 
 
@@ -45,12 +45,13 @@ app.use('/public', express.static(__dirname + '/public'));
 var server = require('http').createServer(app);
 //Create the socket listener
 var io = require('socket.io')(server);
+var connections = 0;
 //Handle socket events
 io.on('connection', function(socket){
-	console.log('Socket connection established.');
+	connections++;
 	socket.emit('new question', { question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex });
 	socket.on('disconnect', function(){
-		console.log('Socket connection closed.');
+		connections--;
 	});
 });
 
@@ -109,28 +110,20 @@ function error(str, host) {
 	process.exit(1);
 }
 
-/*function Question(question, answers, numberOfRequired, vacant, blank) {
-	this.question = question;
-	this.answers = answers;
-	this.numberOfRequired = numberOfRequired;
-	this.vacant = vacant;
-	this.blank = blank;
-}
-
-var q = new Question("test", 2, true, true);
-console.log("Question: ", q);*/
-
-function Command(command, parameters, execute) {
+function Command(command, parameters, execute, confirm) {
 	if(!command || !isString(command))
 		error('Command must be a string.', 'Command construction');
 	if(!parameters || !isArrayOfType(parameters, Parameter))
 		error('Parameters must be an array of the Parameter type.', 'Command construction');	
 	if(!execute || !isFunction(execute))
-		error('Execute must be a function.', 'Command construction');	
+		error('Execute must be a function.', 'Command construction');
+	if(!isBoolean(confirm))
+		error('Confirm must be a boolean.', 'Command construction');
 
 	this.command = command;
 	this.parameters = parameters;
 	this.execute = execute;
+	this.confirm = confirm;
 }
 
 function Parameter(promptQuestion, check) {
@@ -166,6 +159,10 @@ function isFunction(x) {
 	return typeof(x) == 'function';
 }
 
+function isBoolean(x) {
+	return typeof(x) == 'boolean';
+}
+
 function getCheckDescription(check) {
 	if(check == stringIsInteger)
 		return 'is not an integer';
@@ -199,18 +196,13 @@ var commands = [
 		new Parameter('Enter number of required parameters:', stringIsInteger),
 		new Parameter('Enable vacant?', stringIsBoolean),
 		new Parameter('Enable blanks?', stringIsBoolean)
-	], startQuestion),
+	], startQuestion, true),
 	new Command('initialize', [
 		new Parameter('Enter number of access codes to be generated:', stringIsInteger)
-	], initialize),
-	new Command('close question', [], closeQuestion)
+	], initialize, true),
+	new Command('close question', [], closeQuestion, true),
+	new Command('status', [], showStatus, false)
 ];
-
-/*var commands = [
-	['question', 'Enter question:', 'Enter answers separated by comma (without vacant and/or blanks):', 'Enter number of required parameters:', 'Enable vacant?', 'Enable blanks?'],
-	['initialize', 'Enter number of access codes to be generated:'],
-	['close question']
-];*/
 
 //Used to confirm the execution of commands
 var pendingCommand = false;
@@ -260,7 +252,7 @@ function addParameter(value) {
 //Descides what to do with a string received from the console
 function handleInput(input) {
 	if(pendingCommand) {
-		if(stringIsBoolean(input) && getBooleanFromString(input)) {
+		if(!input || (stringIsBoolean(input) && getBooleanFromString(input))) {
 			currentCommand.execute(parameters);
 			clearCommandData();
 		} else
@@ -276,7 +268,10 @@ function handleInput(input) {
 						msg(getCommandParameter());
 					else {
 						pendingCommand = true;
-						msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+						if(currentCommand.confirm)
+							msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+						else
+							handleInput();
 					}
 
 					return;
@@ -287,24 +282,17 @@ function handleInput(input) {
 		} else {
 			if(input == 'abort')
 				abortCommand();
-			/*else if(!hasCommandParameter()) {
-				if(addParameter(input)) {
-					pendingCommand = true;
-					msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
-				}
-			} else {
-				if(addParameter(input)) {
-					if(hasCommandParameter())
-						msg(getCommandParameter());
-				}
-			}*/
 			else {
 				if(addParameter(input)) {
 					if(hasCommandParameter())
 						msg(getCommandParameter());
 					else {
 						pendingCommand = true;
-						msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+
+						if(currentCommand.confirm)
+							msg('Do you really want to execute command: \'' + currentCommand.command + '\'?');
+						else
+							handleInput();
 					}
 				}
 			}
@@ -397,8 +385,6 @@ function registerAnswer(code, a) {
 			} else
 				answers[a[i]]++;
 		}
-
-		console.log('Registered answer: ' + a + ' for index: ' + index);
 	}
 }
 
@@ -446,7 +432,6 @@ function checkValidAnswers(givenAnswers) {
 //Checks if the code has already been used to answer the question
 function checkCodeAnsweredQuestion(code) {
 	var index = validateCode(code);
-	msg("code: " + code + " index: "+ index + " cta: " + codesThatAnswered[index]);
 	if(index >= 0)
 		return codesThatAnswered[index];
 	return false;
@@ -523,18 +508,8 @@ function closeQuestion() {
 	emit = whether or not to inform clients
 */
 function endQuestion(emit) {
-	if(questionRunning) {
-		msg('Result of previous question \'' + question + '\'.');
-
-		var total = calculateTotal();
-		for(var i = 0; i < answers.length; i++)
-			if(i != vacantIndex && i != blankIndex)
-				msg('\'' + possibleAnswers[i] + '\': ' + answers[i] + ' votes (' + (answers[i] / total * 100) + '%).');
-		for(var i = 0; i < vacantAnswers.length; i++)
-			msg('\'Vacant ' + (i+1) + '\': ' + vacantAnswers[i] + ' votes (' + (vacantAnswers[i] / total * 100) + '%).');
-		for(var i = 0; i < blankAnswers.length; i++)
-			msg('\'Blank ' + (i+1) + '\': ' + blankAnswers[i] + ' votes (' + (blankAnswers[i] / total * 100) + '%).');
-	}
+	if(questionRunning)
+		showQuestionResult('previous');
 
 	if(emit)
 		//Send an empty question to the clients
@@ -549,6 +524,25 @@ function endQuestion(emit) {
 	blankIndex = -1;
 }
 
+function showQuestionResult(str) {
+	msg('Result of ' + str + ' question \'' + question + '\'.');
+
+	var total = calculateTotal();
+	for(var i = 0; i < answers.length; i++)
+		if(i != vacantIndex && i != blankIndex)
+			msg('\'' + possibleAnswers[i] + '\': ' + answers[i] + ' votes (' + (answers[i] / total * 100) + '%).');
+	for(var i = 0; i < vacantAnswers.length; i++)
+		msg('\'Vacant ' + (i+1) + '\': ' + vacantAnswers[i] + ' votes (' + (vacantAnswers[i] / total * 100) + '%).');
+	for(var i = 0; i < blankAnswers.length; i++)
+		msg('\'Blank ' + (i+1) + '\': ' + blankAnswers[i] + ' votes (' + (blankAnswers[i] / total * 100) + '%).');
+
+	var numberOfAnswers = 0;
+	for(var i = 0; i < codesThatAnswered.length; i++)
+		if(codesThatAnswered[i])
+			numberOfAnswers++;
+	msg('Number of answers: ' + numberOfAnswers + '/' + accessCodes.length);
+}
+
 //Calculates the total answers given
 function calculateTotal() {
 	var total = 0;
@@ -559,6 +553,14 @@ function calculateTotal() {
 	for(var i = 0; i < blankAnswers.length; i++)
 		total += blankAnswers[i];
 	return total;
+}
+
+function showStatus() {
+	msg('------------ Status: ------------');
+	msg('Number of connections: ' + connections);
+	msg('Question active: ' + questionRunning);
+	if(questionRunning)
+		showQuestionResult('current');
 }
 
 //Temporary. For debugging only.
