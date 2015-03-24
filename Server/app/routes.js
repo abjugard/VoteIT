@@ -36,11 +36,7 @@ module.exports = function(app) {
 						res.send({result: 'corruptError'});
 					}
 				} else {
-					//if(server.questionExists()) {
-						res.render('vote.ejs', { accessCode: code });//, question: parameters[0], answers: parameters[1], numberOfRequired: parameters[2], vacantIndex: parameters[3], blankIndex: parameters[4]});
-					//} else {
-						//res.render('vote.ejs', { accessCode: code}); //, question: null, answers: null, numberOfRequired: null, vacantIndex: -1, blankIndex: -1});
-					//}
+					res.render('vote.ejs', { accessCode: code });
 				}
 			} else {
 				if(code && answers)

@@ -55,6 +55,7 @@ io.on('connection', function(socket){
 	});
 });
 
+//Force authentication when connecting a socket
 io.use(function(socket, next) {
 	var code = socket.request._query.code;
 	if(validateCode(code) >= 0)
@@ -76,7 +77,7 @@ stdin.addListener('data', function(d) {
 
 
 
-/* --------------------- Methods --------------------- */
+/* --------------------- SERVER FUNCTIONALITY --------------------- */
 
 //All the functions that should be reached by the routes.js file
 module.exports = {
@@ -105,12 +106,19 @@ function msg(msg) {
 	console.log('>>> ' + msg);
 }
 
+/* Create an empty line. */
+function newLine() {
+	console.log('');
+}
+
+/* Post a message and exit. */
 function error(str, host) {
 	msg('ERROR in ' + host + '. ' +  str);
 	process.exit(1);
 }
 
-function Command(command, parameters, execute, confirm) {
+/* A structure that represents Commands from the server console. */
+function Command(command, parameters, execute, confirm, desc) {
 	if(!command || !isString(command))
 		error('Command must be a string.', 'Command construction');
 	if(!parameters || !isArrayOfType(parameters, Parameter))
@@ -119,13 +127,17 @@ function Command(command, parameters, execute, confirm) {
 		error('Execute must be a function.', 'Command construction');
 	if(!isBoolean(confirm))
 		error('Confirm must be a boolean.', 'Command construction');
+	if(desc && !isString(desc))
+		error('Description must be a string.', 'Command construction');
 
 	this.command = command;
 	this.parameters = parameters;
 	this.execute = execute;
 	this.confirm = confirm;
+	this.desc = desc;
 }
 
+/* A structure that represents the parameters a Command from the server can have. */
 function Parameter(promptQuestion, check) {
 	if(!promptQuestion || !isString(promptQuestion))
 		error('PromptQuestion must be a string.', 'Parameter construction');
@@ -139,11 +151,13 @@ function Parameter(promptQuestion, check) {
 		this.check = check;
 }
 
-//Check if 'x' is numeric
+/* Check if the string is an integer. */
 function stringIsInteger(s) {
   return !isNaN(parseInt(s)) && isFinite(s);
 }
 
+/* Check if the string is a boolean. The string is not supposed to be a traditional true/false
+	boolean but a yes/no boolean instead. */
 function stringIsBoolean(s) {
 	if(s == "yes" || s == "no")
 		return true;
@@ -151,18 +165,8 @@ function stringIsBoolean(s) {
 		return false;
 }
 
-function isString(x) {
-	return typeof x == 'string' || x instanceof String;
-}
-
-function isFunction(x) {
-	return typeof(x) == 'function';
-}
-
-function isBoolean(x) {
-	return typeof(x) == 'boolean';
-}
-
+/* Return a description of the given check function. Is used to present understandable error
+	messages in the console. */
 function getCheckDescription(check) {
 	if(check == stringIsInteger)
 		return 'is not an integer';
@@ -172,6 +176,22 @@ function getCheckDescription(check) {
 		return '[no description]';
 }
 
+/* Check if the variable is a string. */
+function isString(x) {
+	return typeof x == 'string' || x instanceof String;
+}
+
+/* Check if the variable is a function. */
+function isFunction(x) {
+	return typeof(x) == 'function';
+}
+
+/* Check if the variable is a boolean. */
+function isBoolean(x) {
+	return typeof(x) == 'boolean';
+}
+
+/* Transform a yes/no string to a boolean. */
 function getBooleanFromString(s) {
 	if(s == "yes")
 		return true;
@@ -179,6 +199,7 @@ function getBooleanFromString(s) {
 		return false;
 }
 
+/* Check if the given array is infact an array, and that it contains the given type. */
 function isArrayOfType(array, type) {
 	if(array.constructor === Array) {
 		if(array.length > 0)
@@ -189,19 +210,29 @@ function isArrayOfType(array, type) {
 	return false;
 }
 
+/* All the available commands in the server console. */
 var commands = [
 	new Command('question', [
-		new Parameter('Enter question:'),
-		new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
-		new Parameter('Enter number of required parameters:', stringIsInteger),
-		new Parameter('Enable vacant?', stringIsBoolean),
-		new Parameter('Enable blanks?', stringIsBoolean)
-	], startQuestion, true),
+			new Parameter('Enter question:'),
+			new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
+			new Parameter('Enter number of required parameters:', stringIsInteger),
+			new Parameter('Enable vacant?', stringIsBoolean),
+			new Parameter('Enable blanks?', stringIsBoolean)
+		], startQuestion, true, 'Create a new question.'),
+	new Command('question -s', [
+			new Parameter('Enter question:'),
+			new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
+			new Parameter('Enter number of required parameters:', stringIsInteger)
+		], simpleQuestion, true, 'Create a short question. Vacant and blanks are defaulted to disabled.'),
+	new Command('question -yn', [
+			new Parameter('Enter question:')
+		], yesNoQuestion, true, 'Create a yes/no question. Answers are defaulted yes/no. Number of required answers is defaulted to 1. Vacant and blanks are defaulted to disabled.'),
 	new Command('initialize', [
-		new Parameter('Enter number of access codes to be generated:', stringIsInteger)
-	], initialize, true),
-	new Command('close question', [], closeQuestion, true),
-	new Command('status', [], showStatus, false)
+			new Parameter('Enter number of access codes to be generated:', stringIsInteger)
+		], initialize, true, 'Initialize the access codes that are needed to login to the voting system.'),
+	new Command('close question', [], closeQuestion, true, 'Close the current question and display the result.'),
+	new Command('status', [], showStatus, false, 'Show how many clients are connected and the result of the current question.'), 
+	new Command('help', [], showHelp, false)
 ];
 
 //Used to confirm the execution of commands
@@ -210,19 +241,22 @@ var pendingCommand = false;
 var currentCommand = null;
 //Used to store all parameters for a command
 var parameters = [];
+//Used to keep track of which parameter is currently being retrieved in the console. */
 var parameterIndex = -1;
 
-
+/* Checks if the command needs more parameters. */
 function hasCommandParameter() {
 	return parameterIndex < currentCommand.parameters.length;
 }
 
+/* Returns the next parameter. */
 function getCommandParameter() {
 	if(!hasCommandParameter())
 		return null;
 	return currentCommand.parameters[parameterIndex].promptQuestion;
 }
 
+/* Clear all data regarding commands from the console. */
 function clearCommandData() {
 	currentCommand = null;
 	pendingCommand = false;
@@ -230,6 +264,7 @@ function clearCommandData() {
 	parameterIndex = -1;
 }
 
+/* Abort the command that is currently being processed. */
 function abortCommand(reason) {
 	clearCommandData();
 	if(reason)
@@ -238,6 +273,7 @@ function abortCommand(reason) {
 		msg('Command aborted.');
 }
 
+/* Validate and save the given parameter. */
 function addParameter(value) {
 	if(currentCommand.parameters[parameterIndex].check(value)) {
 		parameters[parameterIndex] = value;
@@ -249,7 +285,7 @@ function addParameter(value) {
 	}
 }
 
-//Descides what to do with a string received from the console
+/* Descides what to do with a command from the server console. */
 function handleInput(input) {
 	if(pendingCommand) {
 		if(!input || (stringIsBoolean(input) && getBooleanFromString(input))) {
@@ -307,9 +343,10 @@ var values = [
 	'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W'
 ];
 
-//Initialize n accessCodes
+/* Initialize n accessCodes. */
 function initialize(parameters) {
 	var n = parameters[0];
+	newLine();
 
 	msg('Initializing vote server for ' + n + ' participants...');
 	msg('Generating codes...');
@@ -318,12 +355,15 @@ function initialize(parameters) {
 		accessCodes[i] = randomCode();
 
 	msg('Codes generated:');
+	newLine();
 	var string = '';
 
 	for(var i = 0; i < accessCodes.length; i++) {
 		msg('[' + (i+1) + '] : ' + accessCodes[i]);
 		string += '\n---------------------------\n\n' + 'accessCode: ' + accessCodes[i] + '\n';
 	}
+
+	newLine();
 
 	//Create the access.txt file with all codes
 	msg('Saving to file...');
@@ -334,11 +374,12 @@ function initialize(parameters) {
 	    } else {
 	        msg('File was saved successfully.');
 	        msg('Initialize complete.');
+	        newLine();
 	    }
 	});
 }
 
-//Generates a random code with length 10
+/* Generates a random code with length 10. */
 function randomCode() {
 	code = '';
 	for(var i = 0; i < 10; i++) {
@@ -349,8 +390,7 @@ function randomCode() {
 }
 
 /* Method used to validate an accessCode.
-	Returns -1 if code is invalid, otherwise the index of the code in the accessCode-array.
-*/
+	Returns -1 if code is invalid, otherwise the index of the code in the accessCode-array. */
 function validateCode(code) {
 	for(var i = 0; i < accessCodes.length; i++)
 		if(accessCodes[i] == code)
@@ -367,7 +407,7 @@ var vacantAnswers = [];
 //All blank answers that have been registered
 var blankAnswers = [];
 
-//Registers a clients answers. The accessCode 'code' must be valid. The parameter 'a' should be an array of all answers.
+/* Registers a clients answers. The accessCode 'code' must be valid. The parameter 'a' should be an array of all answers. */
 function registerAnswer(code, a) {
 	var index = validateCode(code);
 	if(index >= 0) {
@@ -388,7 +428,7 @@ function registerAnswer(code, a) {
 	}
 }
 
-//Clears all information regarding answers
+/* Clears all information regarding answers. */
 function clearAnswers() {
 	codesThatAnswered = [];
 	answers = [];
@@ -409,7 +449,7 @@ function clearAnswers() {
 			blankAnswers[i] = 0;
 }
 
-//Check if the answers are valid (should always be true unless frontend code has been changed by user)
+/* Check if the answers are valid (should always be true unless frontend code has been changed by user). */
 function checkValidAnswers(givenAnswers) {
 	if(givenAnswers.length == 0 || givenAnswers.length != numberOfRequired)
 		return false;
@@ -429,7 +469,7 @@ function checkValidAnswers(givenAnswers) {
 	return true;
 }
 
-//Checks if the code has already been used to answer the question
+/* Checks if the code has already been used to answer the question. */
 function checkCodeAnsweredQuestion(code) {
 	var index = validateCode(code);
 	if(index >= 0)
@@ -450,17 +490,20 @@ var blankIndex = -1;
 //Keeps track on whether a question exists
 var questionRunning = false;
 
+/* Method used to create a simple yes/no question. */
+function yesNoQuestion(parameters) {
+	startQuestion([parameters[0], 'yes,no', 1, false, false]);
+}
+
+/* Method used to create a question with no blank/vacant. */
+function simpleQuestion(parameters) {
+	startQuestion([parameters[0], parameters[1], parameters[2], false, false]);
+}
+
 /* Method used to start a new question
 	
-	OBS! The 'vacant' and 'blanc' alternative are added by this method to the answers array, so that the GUI
-	can present all answers without having to add the Vacant and Blanc option itself.
-
-	q = the question string
-	a = all the answers in an array
-	n = number of required answers
-	v = vacant parameter
-	n = blank parameter
-*/
+	OBS! The 'vacant' and 'blank' alternatives are added by this method to the answers array, so that the GUI
+	can present all answers without having to add the Vacant and Blank options itself. */
 function startQuestion(parameters) {
 	var a = parameters[1].split(',');
 
@@ -500,13 +543,13 @@ function startQuestion(parameters) {
 	msg('Created new question!');
 }
 
+/* Used to add the emit=true as a parameter. */
 function closeQuestion() {
 	endQuestion(true);
 }
 
-/* Method used to end a question
-	emit = whether or not to inform clients
-*/
+/* Method used to end a question.
+	emit = whether or not to inform clients. */
 function endQuestion(emit) {
 	if(questionRunning)
 		showQuestionResult('previous');
@@ -515,7 +558,8 @@ function endQuestion(emit) {
 		//Send an empty question to the clients
 		io.emit('new question', { question: null, answers: null, numberOfRequired: null, vacantIndex: -1, blankIndex: -1 });
 	
-	msg('Question ended.');
+	msg('Question closed.');
+	newLine();
 	questionRunning = false;
 	question = '';
 	possibleAnswers = [];
@@ -524,7 +568,9 @@ function endQuestion(emit) {
 	blankIndex = -1;
 }
 
+/* Displays the result of the question. */
 function showQuestionResult(str) {
+	newLine();
 	msg('Result of ' + str + ' question \'' + question + '\'.');
 
 	var total = calculateTotal();
@@ -541,9 +587,10 @@ function showQuestionResult(str) {
 		if(codesThatAnswered[i])
 			numberOfAnswers++;
 	msg('Number of answers: ' + numberOfAnswers + '/' + accessCodes.length);
+	newLine();
 }
 
-//Calculates the total answers given
+/* Calculates the total answers given. */
 function calculateTotal() {
 	var total = 0;
 	for(var i = 0; i < answers.length; i++)
@@ -555,17 +602,33 @@ function calculateTotal() {
 	return total;
 }
 
+/* Display the server's current status in the console. */
 function showStatus() {
+	newLine();
 	msg('------------ Status: ------------');
+	newLine();
 	msg('Number of connections: ' + connections);
 	msg('Question active: ' + questionRunning);
 	if(questionRunning)
 		showQuestionResult('current');
+	else
+		newLine();
+}
+
+/* Display the help in the server console. */
+function showHelp() {
+	newLine();
+	msg('------------ Available commands: ------------');
+	newLine();
+	for(var i = 0; i < commands.length; i++)
+		if(commands[i].command != 'help')
+			msg('Command \'' + commands[i].command + '\': ' + commands[i].desc);
+	newLine();
 }
 
 //Temporary. For debugging only.
 initialize([10]);
-//startQuestion(["Lorum ipsum dolor sit?", "a,b,c", 2, true, true]);
+startQuestion(["Lorum ipsum dolor sit?", "a,b,c", 2, true, true]);
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';
