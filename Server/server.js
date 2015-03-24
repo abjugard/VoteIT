@@ -26,11 +26,11 @@ app.use(bodyParser());
 
 //Initialize toobusy
 app.use(function(req, res, next) {
-  if (toobusy()) {
-	res.send(503, 'I am busy right now, sorry.');
-  } else {
-	next();
-  } 
+	if (toobusy()) {
+		res.send(503, 'I am busy right now, sorry.');
+	} else {
+		next();
+	} 
 });
 
 //Initialize routes
@@ -47,11 +47,20 @@ var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 //Handle socket events
 io.on('connection', function(socket){
-  console.log('Socket connection established.');
-  socket.on('disconnect', function(){
-    console.log('Socket connection closed.');
-  });
+	console.log('Socket connection established.');
+	socket.on('disconnect', function(){
+		console.log('Socket connection closed.');
+	});
 });
+
+io.use(function(socket, next) {
+	var code = socket.request._query.code;
+	if(validateCode(code) >= 0)
+		next();
+	else
+		next(new Error('Invalid access code.'));
+});
+
 //Start server on port 8080
 server.listen(8080);
 console.log('Server running on port 8080...');
