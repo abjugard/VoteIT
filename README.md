@@ -6,7 +6,7 @@ Created by Robin Sveningson, styrIT14/15.
 
 ### Basic concept
 
-See file 'abstract.txt'.
+See file 'abstract.md'.
 
 
 ### How to run

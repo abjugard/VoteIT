@@ -1,4 +1,4 @@
-<!-- 
+<!--
 	VoteIT (https://github.com/cthit/VoteIT)
 	Created by Robin Sveningson, styrIT14/15
 -->
@@ -19,6 +19,9 @@
 		<!-- If there exists an accessCode (doesn't have to be valid though). -->
 		<% if (accessCode) { %>
 		     <script>
+		     	/* Response from a POST request. Response should be an empty string if the user just got redirected from index.ejs. */
+		     	var response = '<%= response %>';
+
 		     	/* The access code. Is sent as a parameter in all post requests. */
 		        var code = '<%= accessCode %>';
 
@@ -125,22 +128,9 @@
 
 				/* The method used to post all the given answers to the server. This method is called by a button in the GUI. */
 				function postAnswer() {
-					if(givenAnswers.length == numberOfRequired) {
-						$.post('vote', { accessCode: code, answers : givenAnswers}, function(returnedData){
-							if(returnedData == 'success') {
-								clearQuestion();
-								flashMessage('Svar registrerat!');
-							} else if(returnedData == 'anweredError') {
-								//The access code has already given an answer to this question.
-								clearQuestion();
-								flashMessage('Du har redan svarat på frågan.')
-							} else if(returnedData == 'corruptError')
-								//Should never happen unless user changes the frontend code.
-								flashMessage('Korrupt svarsdata.');
-						});
-					} else
-						flashMessage('Du har inte angivit tillräckligt många svar!');
-					updateButtons();
+					$('#accessCodeInput').val(code);
+					$('#answersInput').val(givenAnswers);
+					return givenAnswers.length == numberOfRequired;
 				}
 
 				/* Enables/disables the send button. Updates the given answers counter on the displayAnswers button. */
@@ -186,6 +176,7 @@
 
 				/* Initialize a question once the DOM objects are loaded. */
 				window.onload = function(e) {
+					handleResponse();
 					if(hasQuestion())
 						initQuestion();
 					else {
@@ -209,6 +200,23 @@
 				    	//If the message contained an empty question
 				    	clearQuestion();
 				});
+
+				/* If response exists, determine what to do with it. */
+				function handleResponse() {
+					if(response && response != '') {
+						if(response == 'success') {
+							clearQuestion();
+							flashMessage('Svaret har mottagits av servern!');
+						} else if(response == 'anweredError') {
+							//The access code has already given an answer to this question.
+							clearQuestion();
+							flashMessage('Du har redan svarat på frågan.')
+						} else if(response == 'corruptError') {
+							//Should never happen unless user changes the frontend code.
+							flashMessage('Korrupt svarsdata.');
+						}
+					}
+				}
 		     </script>
 		<% } %>
 	</head>
@@ -217,9 +225,13 @@
 			<h2 id='question'>
 				Väntar på fråga...
 			</h2>
-			<button id='displayAnswers' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
-			<button type='button' class='btn btn-danger btn-xs' onClick='clearAnswers()'>Nollställ svar</button>
-			<button id='send' type='button' class='btn btn-success btn-xs' onClick='postAnswer()'>Svara</button>
+			<form action='/' method='post' onsubmit='return postAnswer()'>
+				<button id='displayAnswers' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
+				<button type='button' class='btn btn-danger btn-xs' onClick='clearAnswers()'>Nollställ svar</button>
+				<button id='send' type='submit' onsubmit='return postAnswer()' class='btn btn-success btn-xs'>Svara</button>
+				<input type='hidden' id='accessCodeInput' name='accessCode'>
+				<input type='hidden' id='answersInput' name='answers'>
+			</form>
 			<p id='flash'></p>
 		</div>
 	</body>

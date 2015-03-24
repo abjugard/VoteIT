@@ -85,7 +85,7 @@ module.exports = {
 		return checkValidAnswers(answers);
 	},
 	codeAnsweredQuestion: function(code) {
-		return codesThatAnswered[validateCode(code)];
+		return checkCodeAnsweredQuestion(code);
 	}
 };
 
@@ -240,7 +240,7 @@ var blankAnswers = [];
 //Registers a clients answers. The accessCode 'code' must be valid. The parameter 'a' should be an array of all answers.
 function registerAnswer(code, a) {
 	var index = validateCode(code);
-	if(index != -1) {
+	if(index >= 0) {
 		codesThatAnswered[index] = true;
 
 		var vacants = 0;
@@ -282,28 +282,36 @@ function clearAnswers() {
 }
 
 //Check if the answers are valid (should always be true unless frontend code has been changed by user)
-function checkValidAnswers(answers) {
-	var result = true;
+function checkValidAnswers(givenAnswers) {
+	if(givenAnswers.length == 0 || givenAnswers.length != numberOfRequired)
+		return false;
 
-	var givenAnswers = [];
+	var tempArray = [];
 	for(var i = 0; i < answers.length; i++)
-		givenAnswers[i] = false;
+		tempArray[i] = false;
 
-	for(var i = 0; i < answers.length; i++) {
-		var a = answers[i];
-		if(i != vacantIndex && i != blankIndex && contains(a, givenAnswers))
-			result = false;
+	for(var i = 0; i < givenAnswers.length; i++) {
+		var answer = givenAnswers[i];
+		if(!isNumeric(givenAnswers[i]) || givenAnswers[i] < 0 || givenAnswers[i] >= answers.length ||
+			i != vacantIndex && i != blankIndex && tempArray[givenAnswers[i]])
+			return false;
+		tempArray[givenAnswers[i]] = true;
 	}
 
-	return answers.length == numberOfRequired && result;
+	return true;
 }
 
-//Checks if the 'array' contains the given 'value'
-function contains(value, array) {
-	for(var i = 0; i < array.length; i++)
-		if(array[i] == value)
-			return true;
+//Check if 'i' is numeric
+function isNumeric(i) {
+  return !isNaN(parseFloat(i)) && isFinite(i);
+}
 
+//Checks if the code has already been used to answer the question
+function checkCodeAnsweredQuestion(code) {
+	var index = validateCode(code);
+	msg("code: " + code + " index: "+ index + " cta: " + codesThatAnswered[index]);
+	if(index >= 0)
+		return codesThatAnswered[index];
 	return false;
 }
 
@@ -409,6 +417,10 @@ function calculateTotal() {
 		total += blankAnswers[i];
 	return total;
 }
+
+//Temporary. For debugging only.
+initialize(10);
+startQuestion("Lorum ipsum dolor sit?", "a,b,c", 2, true, true);
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';
