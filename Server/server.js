@@ -18,6 +18,12 @@ var stdin = process.openStdin();
 var bodyParser = require('body-parser');
 //Used to prevent the server from crashing on request overloading
 var toobusy = require('toobusy');
+//Used to handle file system
+var fs = require('fs');
+
+//Path to AccessCode dir
+var ACCESS_CODE_DIR = 'accesscodes';
+
 
 //Initialize morgan
 //app.use(morgan('dev'));
@@ -66,15 +72,14 @@ io.use(function(socket, next) {
 
 //Start server on port 8080
 server.listen(8080);
-console.log('Server running on port 8080...');
+msg('Server running on port 8080...');
 
 //Initialize stdin
 stdin.addListener('data', function(d) {
 	handleInput(d.toString().substring(0, d.length-1));
 });
 
-
-
+initializeFilesystem();
 
 
 /* --------------------- SERVER FUNCTIONALITY --------------------- */
@@ -103,12 +108,9 @@ module.exports = {
 
 /* Method used to post a message to the console. */
 function msg(msg) {
-	console.log('>>> ' + msg);
-}
-
-/* Create an empty line. */
-function newLine() {
-	console.log('');
+	var strings = msg.split('\n');
+	for(var i = 0; i < strings.length; i++)
+		console.log('>>> ' + strings[i]);
 }
 
 /* Post a message and exit. */
@@ -117,8 +119,39 @@ function error(str, host) {
 	process.exit(1);
 }
 
+/* Post a warning. */
+function warning(str) {
+	msg('[WARNING]: ' + str);
+}
+
+/* Used to initialize the access code directory and warn if there are many files. */
+function initializeFilesystem() {
+	if(!fs.existsSync(ACCESS_CODE_DIR)) {
+		if(fs.mkdirSync(ACCESS_CODE_DIR))
+			error('Not able to create directory.', 'create access code dir');
+		else
+			msg('Access code directory initialized.');
+	} else
+		msg('Access code directory initialized.');
+
+	var files = fs.readdirSync(ACCESS_CODE_DIR);
+	var count = 0;
+	for(var i = 0; i < files.length; i++)
+		if(endsWith(files[0], '.txt'))
+			count++;
+	if(count > 10) {
+		warning('You seem to have a lot of access code files in the ' + ACCESS_CODE_DIR
+			+ ' directory. You should probably consider removing old ones.');
+	}
+}
+
+/* Check if str ends with the suffix. */
+function endsWith(str, suffix) {
+    return str.indexOf(suffix, str.length - suffix.length) !== -1;
+}
+
 /* A structure that represents Commands from the server console. */
-function Command(command, parameters, execute, confirm, desc) {
+function Command(command, parameters, execute, confirm, desc, initialize) {
 	if(!command || !isString(command))
 		error('Command must be a string.', 'Command construction');
 	if(!parameters || !isArrayOfType(parameters, Parameter))
@@ -138,17 +171,23 @@ function Command(command, parameters, execute, confirm, desc) {
 }
 
 /* A structure that represents the parameters a Command from the server can have. */
-function Parameter(promptQuestion, check) {
+function Parameter(promptQuestion, check, dynamicString) {
 	if(!promptQuestion || !isString(promptQuestion))
 		error('PromptQuestion must be a string.', 'Parameter construction');
 	if(check && !isFunction(check))
 		error('Check must be a function.', 'Parameter construction')
+	if(dynamicString && !isFunction(dynamicString))
+		error('DynamicString must be a function.', 'Command construction');
 
 	this.promptQuestion = promptQuestion;
 	if(!check)
 		this.check = function() { return true; };
 	else 
 		this.check = check;
+	if(!dynamicString)
+		this.dynamicString = function() { return ''; };
+	else
+		this.dynamicString = dynamicString;
 }
 
 /* Check if the string is an integer. */
@@ -232,7 +271,13 @@ var commands = [
 		], initialize, true, 'Initialize the access codes that are needed to login to the voting system.'),
 	new Command('close question', [], closeQuestion, true, 'Close the current question and display the result.'),
 	new Command('status', [], showStatus, false, 'Show how many clients are connected and the result of the current question.'), 
-	new Command('help', [], showHelp, false)
+	new Command('help', [], showHelp, false),
+	new Command('codes', [], showCurrentAccessCodes, false, 'Display all available access codes and in which file they exist.'),
+	new Command('import', [
+			new Parameter('Choose which access codes document to import by giving is\'s number (located inside the brackets): \n'
+				+ '------------ Access code documents: ------------\n', stringIsInteger, importDynamicString)
+		], importAcessCodes, true, 'Import existing access codes.'),
+	new Command('export', [], exportAccessCodes, false, 'Export all access codes to a new access code document.')
 ];
 
 //Used to confirm the execution of commands
@@ -253,7 +298,7 @@ function hasCommandParameter() {
 function getCommandParameter() {
 	if(!hasCommandParameter())
 		return null;
-	return currentCommand.parameters[parameterIndex].promptQuestion;
+	return currentCommand.parameters[parameterIndex].promptQuestion + currentCommand.parameters[parameterIndex].dynamicString();
 }
 
 /* Clear all data regarding commands from the console. */
@@ -288,7 +333,7 @@ function addParameter(value) {
 /* Descides what to do with a command from the server console. */
 function handleInput(input) {
 	if(pendingCommand) {
-		if(!input || (stringIsBoolean(input) && getBooleanFromString(input))) {
+		if((!input && currentCommand.parameters.length == 0) || (stringIsBoolean(input) && getBooleanFromString(input))) {
 			currentCommand.execute(parameters);
 			clearCommandData();
 		} else
@@ -342,11 +387,16 @@ var accessCodes = [];
 var values = [
 	'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W'
 ];
+//Used to keep track on which file is currently being used.
+var currentAccessCodesPath = '';
+var ACCESS_CODE_DOC_PREFIX = 'Access code: ';
+var ACCESS_CODE_LENGTH = 10;
 
 /* Initialize n accessCodes. */
 function initialize(parameters) {
 	var n = parameters[0];
-	newLine();
+
+	accessCodes = [];
 
 	msg('Initializing vote server for ' + n + ' participants...');
 	msg('Generating codes...');
@@ -355,34 +405,42 @@ function initialize(parameters) {
 		accessCodes[i] = randomCode();
 
 	msg('Codes generated:');
-	newLine();
-	var string = '';
 
-	for(var i = 0; i < accessCodes.length; i++) {
+	for(var i = 0; i < accessCodes.length; i++)
 		msg('[' + (i+1) + '] : ' + accessCodes[i]);
-		string += '\n---------------------------\n\n' + 'accessCode: ' + accessCodes[i] + '\n';
-	}
 
-	newLine();
+	exportAccessCodes();
+    msg('Initialize complete.');
+}
 
+/* Create a new access code document. */
+function exportAccessCodes(parameters) {
 	//Create the access.txt file with all codes
+	var string = '';
+	for(var i = 0; i < accessCodes.length; i++)
+		string += '---------------------------\n\n' + ACCESS_CODE_DOC_PREFIX + accessCodes[i] + '\n\n';
+
 	msg('Saving to file...');
-	var fs = require('fs');
-	fs.writeFile('access.txt', string, function(err) {
-	    if(err) {
-	        msg(err);
-	    } else {
-	        msg('File was saved successfully.');
-	        msg('Initialize complete.');
-	        newLine();
-	    }
+	var path = ACCESS_CODE_DIR + '/' + getCurrentDateTime() + '.txt';
+	writeToFile(string, path, function() {
+		currentAccessCodesPath = path;
+		msg('Successfully exported access codes.')
 	});
+}
+
+/* Write data to file. */
+function writeToFile(data, path, success) {
+	var result = fs.writeFileSync(path, data);
+    if(result)
+        error(err, 'writing access codes to file');
+    else
+    	success();
 }
 
 /* Generates a random code with length 10. */
 function randomCode() {
 	code = '';
-	for(var i = 0; i < 10; i++) {
+	for(var i = 0; i < ACCESS_CODE_LENGTH; i++) {
 		var random = Math.floor(Math.random() * (values.length - 1));
 		code += values[random];
 	}
@@ -396,6 +454,81 @@ function validateCode(code) {
 		if(accessCodes[i] == code)
 			return i;
 	return -1;
+}
+
+/* Get the current date and time in a nice format. */
+function getCurrentDateTime() {
+	var date = new Date();
+	var month = date.getMonth() + 1;
+	return date.getFullYear() + '-' + addZero(month)  + '-' + addZero(date.getDate()) + ' ' 
+		+ addZero(date.getHours()) + ' ' + addZero(date.getMinutes()) + ' ' + addZero(date.getSeconds());
+}
+
+/* Adds a zero if needed. */
+function addZero(i) {
+	if(i < 10)
+		return '0' + i;
+	else
+		return i;
+}
+
+/* Display current accessCodes to the console. */
+function showCurrentAccessCodes(parameters) {
+	msg('------------ Available access codes: ------------');
+	msg('Available in file: \'' + currentAccessCodesPath + '\'');
+	for(var i = 0; i < accessCodes.length; i++)
+		msg('[' + (i+1) + '] : ' + accessCodes[i]);
+}
+
+var accessCodeDocuments = [];
+
+/* Import already existing access codes. */
+function importAcessCodes(parameters) {
+	if(parameters[0] < 0 || parameters[0] >= accessCodeDocuments.length) {
+		msg('Invalid index. Import aborted.');
+		return;
+	}
+	var str = '' + fs.readFileSync(ACCESS_CODE_DIR + '/' + accessCodeDocuments[parameters[0]]);
+	if(str) {
+		accessCodes = [];
+		var count = 0;
+		var lines = str.split('\n');
+		for(var i = 0; i < lines.length; i++) {
+			var line = lines[i];
+			if(line.indexOf(ACCESS_CODE_DOC_PREFIX) >= 0) {
+				line = line.replace(ACCESS_CODE_DOC_PREFIX, '');
+				if(line.length == ACCESS_CODE_LENGTH) {
+					accessCodes[count] = line;
+					count++;
+				}
+			}
+		}
+		currentAccessCodesPath = ACCESS_CODE_DIR + '/' + accessCodeDocuments[parameters[0]];
+		msg('Successfully imported ' + count + ' access codes.');
+	} else
+		msg('Failed to load document.');
+}
+
+function importDynamicString() {
+	var str = '';
+	var allFiles = fs.readdirSync(ACCESS_CODE_DIR);
+	accessCodeDocuments = [];
+	if(allFiles) {
+		var index = 0;
+		for(var i = 0; i < allFiles.length; i++) {
+			if(allFiles[i]) {
+				if(endsWith(allFiles[i], '.txt')) {
+					str += '[' + index + '] ' + allFiles[i];
+					if(i != allFiles.length - 1)
+						str += '\n';
+					accessCodeDocuments[index] = allFiles[i];
+					index++;
+				}
+			}
+		}
+		return str;
+	}
+	error('Was not able to open access code directory.', 'importDynamicString');
 }
 
 //All accessCodes that have registered an answer to the current question
@@ -559,7 +692,6 @@ function endQuestion(emit) {
 		io.emit('new question', { question: null, answers: null, numberOfRequired: null, vacantIndex: -1, blankIndex: -1 });
 	
 	msg('Question closed.');
-	newLine();
 	questionRunning = false;
 	question = '';
 	possibleAnswers = [];
@@ -570,7 +702,6 @@ function endQuestion(emit) {
 
 /* Displays the result of the question. */
 function showQuestionResult(str) {
-	newLine();
 	msg('Result of ' + str + ' question \'' + question + '\'.');
 
 	var total = calculateTotal();
@@ -587,7 +718,6 @@ function showQuestionResult(str) {
 		if(codesThatAnswered[i])
 			numberOfAnswers++;
 	msg('Number of answers: ' + numberOfAnswers + '/' + accessCodes.length);
-	newLine();
 }
 
 /* Calculates the total answers given. */
@@ -604,31 +734,24 @@ function calculateTotal() {
 
 /* Display the server's current status in the console. */
 function showStatus() {
-	newLine();
 	msg('------------ Status: ------------');
-	newLine();
 	msg('Number of connections: ' + connections);
 	msg('Question active: ' + questionRunning);
 	if(questionRunning)
 		showQuestionResult('current');
-	else
-		newLine();
 }
 
 /* Display the help in the server console. */
 function showHelp() {
-	newLine();
 	msg('------------ Available commands: ------------');
-	newLine();
 	for(var i = 0; i < commands.length; i++)
 		if(commands[i].command != 'help')
 			msg('Command \'' + commands[i].command + '\': ' + commands[i].desc);
-	newLine();
 }
 
 //Temporary. For debugging only.
 initialize([10]);
-startQuestion(["Lorum ipsum dolor sit?", "a,b,c", 2, true, true]);
+startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';

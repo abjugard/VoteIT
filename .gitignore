@@ -1,5 +1,5 @@
 /Server/node_modules/*
 *.log
-/Server/access.txt
 .ds_store
 *.ds_store
+/Server/accesscodes/*
