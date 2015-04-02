@@ -40,6 +40,9 @@
 		        /* Initializes a socket connection to the server. */
 				var socket = io.connect('http://127.0.0.1:8080/', { query: 'code=' + code });
 
+				/* To make sure that the flash messages are shown for 2000 ms. */
+				var lastFlashInit = 0;
+
 		     	/*	Displays a new question to the user.
 		     		Assumes: question, answers, numberOfRequired, vacantIndex and blankIndex contains data regarding the current question.
 		     	*/
@@ -82,18 +85,18 @@
 					//Change message
 					$('#flash').html(msg);
 
-					//If busy, then don't create another timeout
-					if(!flashBusy) {
-						flashBusy = true;
-						$('#flash').show();
-						setTimeout(clearFlashMessage, 2000);
-					}
+					lastFlashInit = new Date().getTime();
+					flashBusy = true;
+					$('#flash').show();
+					setTimeout(clearFlashMessage, 2000);
 				}
 
 				/* Removes a currently visible flash message. */
 				function clearFlashMessage() {
-					$('#flash').hide();
-					flashBusy = false;
+					if(new Date().getTime() - 2000 >= lastFlashInit) {
+						$('#flash').hide();
+						flashBusy = false;
+					}
 				}
 
 				/* Checks if there exists a question. */
@@ -134,9 +137,9 @@
 				/* Enables/disables the send button. Updates the given answers counter on the displayAnswers button. */
 				function updateButtons() {
 					if(numberOfRequired == null || numberOfRequired == -1 || !numberOfRequired)
-						$('#displayAnswers').html('Registrerade svar');
+						$('#displayAnswersButton').html('Registrerade svar');
 					else
-						$('#displayAnswers').html('Registrerade svar (' + givenAnswers.length + '/' + numberOfRequired + ')');
+						$('#displayAnswersButton').html('Registrerade svar (' + givenAnswers.length + '/' + numberOfRequired + ')');
 
 					if(givenAnswers.length == numberOfRequired)
 						$('#send').prop('disabled', false);
@@ -229,7 +232,7 @@
 				Väntar på fråga...
 			</h2>
 			<form id='voteForm' action='/' method='post' onsubmit='return postAnswer()'>
-				<button id='displayAnswers' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
+				<button id='displayAnswersButton' type='button' class='btn btn-default btn-xs' onclick='displayAnswers()'>Registrerade svar</button>
 				<button type='button' class='btn btn-danger btn-xs' onClick='clearAnswers()'>Nollställ svar</button>
 				<button id='send' type='submit' onsubmit='return postAnswer()' class='btn btn-success btn-xs'>Svara</button>
 				<input type='hidden' id='accessCodeInput' name='accessCode'>

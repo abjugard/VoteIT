@@ -751,7 +751,7 @@ function showHelp() {
 
 //Temporary. For debugging only.
 initialize([10]);
-startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
+//startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';
