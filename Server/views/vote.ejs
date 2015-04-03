@@ -43,6 +43,10 @@
 				/* To make sure that the flash messages are shown for 2000 ms. */
 				var lastFlashInit = 0;
 
+				/* Translates keyCodes to an index.
+								1  2  3  4  5  6  7  8  9  0  q    w   e   r   t   y   u   i   o   p  a   s   d   f   g   h   j   k   l   z   x  c   v  b   n   m*/
+				var keyCodes = [49,50,51,52,53,54,55,56,57,48,113,119,101,114,116,121,117,105,111,112,97,115,100,102,103,104,106,107,108,122,120,99,118,98,110,109];
+
 		     	/*	Displays a new question to the user.
 		     		Assumes: question, answers, numberOfRequired, vacantIndex and blankIndex contains data regarding the current question.
 		     	*/
@@ -60,10 +64,22 @@
 						answers = answers.split(',');
 
 				    for(var i = answers.length - 1; i >= 0; i--)
-				    	$('<h5 class=\'answer centeredText\'>' + answers[i] + ' (' + (i+1) + ')</h5>').insertAfter('#question');
+				    	$('<h5 class=\'answer centeredText\'>' + answers[i] + ' (' + (String.fromCharCode(keyCodes[i])) + ')</h5>').insertAfter('#question');
 				    givenAnswers = [];
 				    $('button').prop('disabled', false);
 				    updateButtons();
+				    centerVoteWrapper();
+				}
+
+				function centerVoteWrapper() {
+					if(window && $('#voteWrapper')) {
+						var windowHeight = $(window).outerHeight();
+						var wrapperHeight = $('#voteWrapper').outerHeight();
+						if(wrapperHeight < windowHeight) {
+							$('#voteWrapper').css('margin-top', windowHeight/2 - wrapperHeight/2);
+						} else 
+					    	$('#voteWrapper').css('margin-top', 0);
+					}
 				}
 
 				/*	Clears a currently visible question. */
@@ -147,18 +163,24 @@
 						$('#send').prop('disabled', true);
 				}
 
+				/* Get index of keyCode. */
+				function getIndex(keyCode) {
+					for(var i = 0; i < keyCodes.length; i++)
+						if(keyCodes[i] == keyCode)
+							return i;
+					return -1;
+				}
+
 				/* Takes care of all the keypresses for given answers. */
 				window.onkeypress = function(e) {
 					if(hasQuestion()) {
 						if(givenAnswers.length < numberOfRequired) {
-							//49 = key '1'
-							//This logic should be changed to be more generic and allow more keys than 1-9 (Must also change backend though).
-							var key = e.keyCode - 49;
-							if(key >= 0 && key < answers.length) {
+							var index = getIndex(e.keyCode);
+							if(index >= 0 && index < answers.length) {
 								//Vacants and blanks can be registered several times.
-								if(key != vacantIndex && key != blankIndex) {
+								if(index != vacantIndex && index != blankIndex) {
 									for(var i = 0; i < givenAnswers.length; i++) {
-										if(givenAnswers[i] == key) {
+										if(givenAnswers[i] == index) {
 											flashMessage('Svaret har registrerats förut!');
 											updateButtons();
 											return;
@@ -166,7 +188,7 @@
 									}
 								}
 
-								givenAnswers[givenAnswers.length] = key;
+								givenAnswers[givenAnswers.length] = index;
 								flashMessage('Svar registrerat!');
 							}
 						} else
@@ -205,6 +227,8 @@
 						$('button').prop('disabled', true);
 					}
 				}
+
+				window.onresize = centerVoteWrapper;
 
 				/* Handle incoming socket messages. */
 				socket.on('new question', function(msg){

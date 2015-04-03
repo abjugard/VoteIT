@@ -140,11 +140,10 @@ function initializeFilesystem() {
 			msg('Access code directory initialized.');
 	} else
 		msg('Access code directory initialized.');
-
 	var files = fs.readdirSync(ACCESS_CODE_DIR);
 	var count = 0;
 	for(var i = 0; i < files.length; i++)
-		if(endsWith(files[0], '.txt'))
+		if(endsWith(files[i], '.txt'))
 			count++;
 	if(count > 10) {
 		warning('You seem to have a lot of access code files in the ' + ACCESS_CODE_DIR
@@ -648,8 +647,8 @@ function startQuestion(parameters) {
 	var a = parameters[1].split(',');
 
 	//Should be remaked to allow more answers
-	if(a.length > 9) {
-		msg('Number of required answers can\'t be greater than 9.');
+	if(a.length > 36) {
+		msg('Number of required answers can\'t be greater than 36.');
 		msg('No question created.');
 		return;
 	}
