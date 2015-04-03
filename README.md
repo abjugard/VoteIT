@@ -21,8 +21,8 @@ See file 'abstract.md'.
 ### Available commands
 
 * 'help': Show all available commands.
-* 'question': Create a new question.
-* 'question -s': Create a short question. Vacant and blanks are defaulted to disabled.
+* 'question': Create a short question. Vacant and blanks are defaulted to disabled.
+* 'question -l': Create a long question. All required parameters must be given. There will be no defaults.
 * 'question -yn': Create a yes/no question. Answers are defaulted yes/no. Number of required answers is defaulted to 1. Vacant and blanks are defaulted to disabled.
 * 'initialize': Initialize the access codes that are needed to login to the voting system, also exports them to the filesystem.
 * 'close question': Close the current question and display the result.

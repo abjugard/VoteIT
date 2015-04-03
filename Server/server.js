@@ -4,6 +4,13 @@
 
 /* --------------------- INITIALIZE SERVER --------------------- */
 
+
+
+//Must be false on realease version
+var DEBUG = true;
+
+
+
 //Web application framework for node.js
 var express = require('express');
 //The application
@@ -251,14 +258,14 @@ function isArrayOfType(array, type) {
 
 /* All the available commands in the server console. */
 var commands = [
-	new Command('question', [
+	new Command('question -l', [
 			new Parameter('Enter question:'),
 			new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
 			new Parameter('Enter number of required parameters:', stringIsInteger),
 			new Parameter('Enable vacant?', stringIsBoolean),
 			new Parameter('Enable blanks?', stringIsBoolean)
 		], startQuestion, true, 'Create a new question.'),
-	new Command('question -s', [
+	new Command('question', [
 			new Parameter('Enter question:'),
 			new Parameter('Enter answers separated by comma (without vacant and/or blanks):'),
 			new Parameter('Enter number of required parameters:', stringIsInteger)
@@ -749,9 +756,10 @@ function showHelp() {
 			msg('Command \'' + commands[i].command + '\': ' + commands[i].desc);
 }
 
-//Temporary. For debugging only.
-initialize([10]);
-//startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
+if(DEBUG) {
+	initialize([10]);
+	startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
+}
 
 /*function testQuestionLogic() {
 	var question1 = 'Asd asd asd?';
