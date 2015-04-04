@@ -600,7 +600,7 @@ function checkValidAnswers(givenAnswers) {
 	for(var i = 0; i < givenAnswers.length; i++) {
 		var answer = givenAnswers[i];
 		if(!stringIsInteger(givenAnswers[i]) || givenAnswers[i] < 0 || givenAnswers[i] >= answers.length ||
-			i != vacantIndex && i != blankIndex && tempArray[givenAnswers[i]])
+			givenAnswers[i] != vacantIndex && givenAnswers[i] != blankIndex && tempArray[givenAnswers[i]])
 			return false;
 		tempArray[givenAnswers[i]] = true;
 	}
@@ -757,7 +757,7 @@ function showHelp() {
 
 if(DEBUG) {
 	initialize([10]);
-	startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, true, true]);
+	startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, 'yes', 'yes']);
 }
 
 /*function testQuestionLogic() {
