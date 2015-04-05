@@ -19,8 +19,6 @@ var app = express();
 var sys = require('sys');
 //Used to read console data
 var stdin = process.openStdin();
-//Used to log information about GET/POST requests
-//var morgan = require('morgan');
 //Used to parse the body of incoming POST requests (to retrieve data from forms)
 var bodyParser = require('body-parser');
 //Used to prevent the server from crashing on request overloading
@@ -32,6 +30,7 @@ var fs = require('fs');
 var ACCESS_CODE_DIR = 'accesscodes';
 
 if(DEBUG) {
+	//Used to log information about GET/POST requests
 	var morgan = require('morgan');
 	app.use(morgan('dev'));
 }
@@ -65,32 +64,39 @@ app.set('view engine', 'ejs');
 //Static directory for stylesheets and scripts
 app.use('/public', express.static(__dirname + '/public'));
 
-//Create the HTTP server
-var server = require('http').createServer(app);
-//Create the socket listener
-var io = require('socket.io')(server);
-var connections = 0;
-//Handle socket events
-io.on('connection', function(socket){
-	connections++;
-	socket.emit('new question', { question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex });
-	socket.on('disconnect', function(){
-		connections--;
+//Initialize SSE
+var SSE = require('sse');
+//Initialize HTTP
+var http = require('http');
+//Create server from HTTP
+var server = http.createServer(app);
+//Connected clients
+var clients = [];
+
+server.listen(8080, 'localhost', function() {
+	var sse = new SSE(server);
+	sse.on('connection', function(client) {
+		clients.push(client);
+		emitQuestion(false);
+		client.on('close', function() {
+			var index = clients.indexOf(client);
+			if(index >= 0)
+				clients.splice(index);
+		});
 	});
 });
 
-//Force authentication when connecting a socket
-io.use(function(socket, next) {
-	var code = socket.request._query.code;
-	if(validateCode(code) >= 0)
-		next();
-	else
-		next(new Error('Invalid access code.'));
-});
-
-//Start server on port 8080
-server.listen(8080);
-msg('Server running on port 8080...');
+//Emit data to clients
+function emitQuestion(empty) {
+	for(var i = 0; i < clients.length; i++) {
+		if(clients[i]) {
+			if(empty)
+				clients[i].send(JSON.stringify({ question: null, answers: null, numberOfRequired: null, vacantIndex: -1, blankIndex: -1 }));	
+			else
+				clients[i].send(JSON.stringify({ question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex }));
+		}
+	}
+}
 
 //Initialize stdin
 stdin.addListener('data', function(d) {
@@ -121,6 +127,9 @@ module.exports = {
 	},
 	codeAnsweredQuestion: function(code) {
 		return checkCodeAnsweredQuestion(code);
+	},
+	getSalt: function() {
+		return salt;
 	}
 };
 
@@ -689,7 +698,7 @@ function startQuestion(parameters) {
 	questionRunning = true;
 
 	//Send question via the socket connection
-	io.emit('new question', { question: question, answers: possibleAnswers, numberOfRequired: numberOfRequired, vacantIndex: vacantIndex, blankIndex: blankIndex });
+	emitQuestion(false);
 	msg('Created new question!');
 }
 
@@ -706,7 +715,7 @@ function endQuestion(emit) {
 
 	if(emit)
 		//Send an empty question to the clients
-		io.emit('new question', { question: null, answers: null, numberOfRequired: null, vacantIndex: -1, blankIndex: -1 });
+		emitQuestion(true);
 	
 	msg('Question closed.');
 	questionRunning = false;
@@ -752,7 +761,7 @@ function calculateTotal() {
 /* Display the server's current status in the console. */
 function showStatus() {
 	msg('------------ Status: ------------');
-	msg('Number of connections: ' + connections);
+	msg('Number of connections: ' + clients.length);
 	msg('Question active: ' + questionRunning);
 	if(questionRunning)
 		showQuestionResult('current');
@@ -770,47 +779,3 @@ if(DEBUG) {
 	initialize([10]);
 	startQuestion(['Lorum ipsum dolor sit?', 'a,b,c', 2, 'yes', 'yes']);
 }
-
-/*function testQuestionLogic() {
-	var question1 = 'Asd asd asd?';
-	var question2 = 'Dobabidatap?';
-	var answers1 = ['a', 'b', 'c', 'd', 'e'];
-	var answers2 = ['1', '2', '3'];
-
-	initialize(10);
-
-	startQuestion(question1, answers1);
-
-	registerAnswer(accessCodes[0], 0);
-	registerAnswer(accessCodes[1], 0);
-	registerAnswer(accessCodes[2], 0);
-	registerAnswer(accessCodes[3], 0);
-
-	registerAnswer(accessCodes[4], 2);
-
-	registerAnswer(accessCodes[5], 4);
-
-	registerAnswer(accessCodes[6], 3);
-	registerAnswer(accessCodes[7], 3);
-	registerAnswer(accessCodes[8], 3);
-	registerAnswer(accessCodes[9], 3);
-
-	console.log('should be: 4x0, 1x2, 1x4, 4x3 -- a,b,c,d,e');
-
-	startQuestion(question2, answers2);
-
-	registerAnswer(accessCodes[0], 1);
-	registerAnswer(accessCodes[1], 1);
-	registerAnswer(accessCodes[2], 1);
-	registerAnswer(accessCodes[3], 1);
-
-	registerAnswer(accessCodes[4], 2);
-	registerAnswer(accessCodes[5], 2);
-	registerAnswer(accessCodes[6], 2);
-	registerAnswer(accessCodes[7], 2);
-	registerAnswer(accessCodes[8], 2);
-	registerAnswer(accessCodes[9], 2);
-
-	endQuestion();
-	console.log('should be: 4x1, 6x2 -- 1,2,3');
-}*/

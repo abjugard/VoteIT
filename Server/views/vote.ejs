@@ -15,7 +15,7 @@
 		<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
 	    <script src="http://malsup.github.com/jquery.form.js"></script> 
 		<script src='https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js'></script>
-		<script src='/socket.io/socket.io.js'></script>
+		<!--<script src='/socket.io/socket.io.js'></script>-->
 
 		<!-- If there exists an accessCode (doesn't have to be valid though). -->
 		<% if (accessCode) { %>
@@ -38,7 +38,24 @@
 		        var flashBusy = false;
 
 		        /* Initializes a socket connection to the server. */
-				var socket = io.connect('http://127.0.0.1:8080/', { query: 'code=' + code });
+				var es = new EventSource("/sse");
+				es.onmessage = function (event) {
+					var msg = JSON.parse(event.data);
+					question = msg.question;
+					answers = msg.answers;
+					numberOfRequired = msg.numberOfRequired;
+					vacantIndex = msg.vacantIndex;
+					blankIndex = msg.blankIndex;
+
+					$('#voteWrapper').css('display', 'table');
+
+					if(hasQuestion())
+						//If the message contained a new question
+				    	initQuestion();
+				    else
+				    	//If the message contained an empty question
+				    	clearQuestion();
+				};
 
 				/* To make sure that the flash messages are shown for 2000 ms. */
 				var lastFlashInit = 0;
@@ -230,24 +247,6 @@
 				}
 
 				window.onresize = centerVoteWrapper;
-
-				/* Handle incoming socket messages. */
-				socket.on('new question', function(msg){
-					question = msg.question;
-					answers = msg.answers;
-					numberOfRequired = msg.numberOfRequired;
-					vacantIndex = msg.vacantIndex;
-					blankIndex = msg.blankIndex;
-
-					$('#voteWrapper').css('display', 'table');
-
-					if(hasQuestion())
-						//If the message contained a new question
-				    	initQuestion();
-				    else
-				    	//If the message contained an empty question
-				    	clearQuestion();
-				});
 		     </script>
 		<% } %>
 	</head>
