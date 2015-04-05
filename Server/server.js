@@ -31,11 +31,22 @@ var fs = require('fs');
 //Path to AccessCode dir
 var ACCESS_CODE_DIR = 'accesscodes';
 
+if(DEBUG) {
+	var morgan = require('morgan');
+	app.use(morgan('dev'));
+}
 
-//Initialize morgan
-//app.use(morgan('dev'));
-//Inititalize bodyParser
-app.use(bodyParser()); 
+//Inititalize bodyParser, set limit to 15kb
+app.use(bodyParser.json({limit: 15000}));
+app.use(bodyParser.urlencoded({limit: 15000, extended: true}));
+
+//Handle all application errors
+app.use (function (error, req, res, next){
+    //Catch json error
+    if(DEBUG)
+    	msg('EXCEPTION [' + error.type + ']: ' + error.message);
+    next();
+});
 
 //Initialize toobusy
 app.use(function(req, res, next) {

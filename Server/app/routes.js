@@ -48,6 +48,8 @@ module.exports = function(app) {
 			}
 		}
 
-		res.end("Access denied.");
+		res.render('index.ejs', {
+			message: 'Invalid access code.'
+		});
 	});
 };
