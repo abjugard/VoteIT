@@ -30,8 +30,10 @@ module.exports = function(app) {
 					if(server.codeAnsweredQuestion(code)) {
 						res.send({result: 'anweredError'});
 					} else if(server.validAnswers(answers)) {
-						server.register(code, answers);
-						res.send({result: 'success'});
+						if(server.register(code, answers))
+							res.send({result: 'success'});
+						else
+							res.send({result: 'corruptError'});	
 					} else {
 						res.send({result: 'corruptError'});
 					}

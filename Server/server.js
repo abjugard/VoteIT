@@ -2,14 +2,12 @@
 	Created by Robin Sveningson, styrIT14/15  */
 
 
+
+
 /* --------------------- INITIALIZE SERVER --------------------- */
 
-
-
 //Must be false on realease version
-var DEBUG = true;
-
-
+var DEBUG = false;
 
 //Web application framework for node.js
 var express = require('express');
@@ -85,6 +83,7 @@ server.listen(8080, 'localhost', function() {
 		});
 	});
 });
+msg('Server running on port 8080...');
 
 //Emit data to clients
 function emitQuestion(empty) {
@@ -106,6 +105,9 @@ stdin.addListener('data', function(d) {
 initializeFilesystem();
 
 
+
+
+
 /* --------------------- SERVER FUNCTIONALITY --------------------- */
 
 //All the functions that should be reached by the routes.js file
@@ -114,7 +116,7 @@ module.exports = {
 		return validateCode(code);
 	},
 	register: function(code, a) {
-		registerAnswer(code, a);
+		return registerAnswers(code, a);
 	},
 	questionExists: function() {
 		return questionRunning;
@@ -127,21 +129,21 @@ module.exports = {
 	},
 	codeAnsweredQuestion: function(code) {
 		return checkCodeAnsweredQuestion(code);
-	},
-	getSalt: function() {
-		return salt;
 	}
 };
 
 /* Method used to post a message to the console. */
 function msg(msg) {
-	var strings = msg.split('\n');
-	for(var i = 0; i < strings.length; i++)
-		console.log('>>> ' + strings[i]);
+	if(!unitTesting) {
+		var strings = msg.split('\n');
+		for(var i = 0; i < strings.length; i++)
+			console.log('>>> ' + strings[i]);
+	}
 }
 
 /* Post a message and exit. */
 function error(str, host) {
+	unitTesting = false;
 	msg('ERROR in ' + host + '. ' +  str);
 	process.exit(1);
 }
@@ -302,7 +304,7 @@ var commands = [
 	new Command('import', [
 			new Parameter('Choose which access codes document to import by giving is\'s number (located inside the brackets): \n'
 				+ '------------ Access code documents: ------------\n', stringIsInteger, importDynamicString)
-		], importAcessCodes, true, 'Import existing access codes.'),
+		], importAccessCodes, true, 'Import existing access codes.'),
 	new Command('export', [], exportAccessCodes, false, 'Export all access codes to a new access code document.')
 ];
 
@@ -422,13 +424,10 @@ var ACCESS_CODE_LENGTH = 10;
 function initialize(parameters) {
 	var n = parameters[0];
 
-	accessCodes = [];
-
 	msg('Initializing vote server for ' + n + ' participants...');
 	msg('Generating codes...');
 
-	for(var i = 0; i < n; i++)
-		accessCodes[i] = randomCode();
+	generateCodes(n);
 
 	msg('Codes generated:');
 
@@ -437,6 +436,13 @@ function initialize(parameters) {
 
 	exportAccessCodes();
     msg('Initialize complete.');
+}
+
+/* Generate the codes. */
+function generateCodes(n) {
+	accessCodes = [];
+	for(var i = 0; i < n; i++)
+		accessCodes[i] = randomCode();
 }
 
 /* Create a new access code document. */
@@ -509,7 +515,7 @@ function showCurrentAccessCodes(parameters) {
 var accessCodeDocuments = [];
 
 /* Import already existing access codes. */
-function importAcessCodes(parameters) {
+function importAccessCodes(parameters) {
 	if(parameters[0] < 0 || parameters[0] >= accessCodeDocuments.length) {
 		msg('Invalid index. Import aborted.');
 		return;
@@ -560,69 +566,74 @@ function importDynamicString() {
 //All accessCodes that have registered an answer to the current question
 var codesThatAnswered = [];
 //All answers that have been registered
-var answers = [];
+var givenAnswers = [];
 //All vacant answers that have been registered
-var vacantAnswers = [];
+var givenVacantAnswers = [];
 //All blank answers that have been registered
-var blankAnswers = [];
+var givenBlankAnswers = [];
 
 /* Registers a clients answers. The accessCode 'code' must be valid. The parameter 'a' should be an array of all answers. */
-function registerAnswer(code, a) {
-	var index = validateCode(code);
-	if(index >= 0) {
-		codesThatAnswered[index] = true;
+function registerAnswers(code, a) {
+	if(questionRunning) {
+		var index = validateCode(code);
+		if(index >= 0) {
+			codesThatAnswered[index] = true;
 
-		var vacants = 0;
-		var blanks = 0;
-		for(var i = 0; i < a.length; i++) {
-			if(a[i] == vacantIndex) {
-				vacantAnswers[vacants]++;
-				vacants++;
-			} else if(a[i] == blankIndex) {
-				blankAnswers[blanks]++;
-				blanks++;
-			} else
-				answers[a[i]]++;
+			var vacants = 0;
+			var blanks = 0;
+			for(var i = 0; i < a.length; i++) {
+				if(a[i] == vacantIndex) {
+					givenVacantAnswers[vacants]++;
+					vacants++;
+				} else if(a[i] == blankIndex) {
+					givenBlankAnswers[blanks]++;
+					blanks++;
+				} else
+					givenAnswers[a[i]]++;
+			}
+
+			return true;
 		}
 	}
+	return false;
 }
 
 /* Clears all information regarding answers. */
 function clearAnswers() {
 	codesThatAnswered = [];
-	answers = [];
-	vacantAnswers = [];
-	blankAnswers = [];
+	givenAnswers = [];
+	givenVacantAnswers = [];
+	givenBlankAnswers = [];
 
 	for(var i = 0; i < accessCodes.length; i++)
 		codesThatAnswered[i] = false;
 	for(var i = 0; i < possibleAnswers.length; i++)
-		answers[i] = 0;
+		if(i != vacantIndex && i != blankIndex)
+			givenAnswers[i] = 0;
 
 	if(vacantIndex >= 0)
 		for(var i = 0; i < numberOfRequired; i++)
-			vacantAnswers[i] = 0;
+			givenVacantAnswers[i] = 0;
 
 	if(blankIndex >= 0)
 		for(var i = 0; i < numberOfRequired; i++)
-			blankAnswers[i] = 0;
+			givenBlankAnswers[i] = 0;
 }
 
 /* Check if the answers are valid (should always be true unless frontend code has been changed by user). */
-function checkValidAnswers(givenAnswers) {
-	if(givenAnswers.length == 0 || givenAnswers.length != numberOfRequired)
+function checkValidAnswers(answers) {
+	if(answers.length == 0 || answers.length != numberOfRequired || !questionRunning)
 		return false;
 
 	var tempArray = [];
 	for(var i = 0; i < answers.length; i++)
 		tempArray[i] = false;
 
-	for(var i = 0; i < givenAnswers.length; i++) {
-		var answer = givenAnswers[i];
-		if(!stringIsInteger(givenAnswers[i]) || givenAnswers[i] < 0 || givenAnswers[i] >= answers.length ||
-			givenAnswers[i] != vacantIndex && givenAnswers[i] != blankIndex && tempArray[givenAnswers[i]])
+	for(var i = 0; i < answers.length; i++) {
+		if(!stringIsInteger(answers[i]) || answers[i] < 0 || answers[i] >= possibleAnswers.length ||
+			answers[i] != vacantIndex && answers[i] != blankIndex && tempArray[answers[i]])
 			return false;
-		tempArray[givenAnswers[i]] = true;
+		tempArray[answers[i]] = true;
 	}
 
 	return true;
@@ -651,7 +662,7 @@ var questionRunning = false;
 
 /* Method used to create a simple yes/no question. */
 function yesNoQuestion(parameters) {
-	startQuestion([parameters[0], 'yes,no', 1, false, false]);
+	startQuestion([parameters[0], 'ja,nej', 1, false, false]);
 }
 
 /* Method used to create a question with no blank/vacant. */
@@ -731,13 +742,13 @@ function showQuestionResult(str) {
 	msg('Result of ' + str + ' question \'' + question + '\'.');
 
 	var total = calculateTotal();
-	for(var i = 0; i < answers.length; i++)
+	for(var i = 0; i < givenAnswers.length; i++)
 		if(i != vacantIndex && i != blankIndex)
-			msg('\'' + possibleAnswers[i] + '\': ' + answers[i] + ' votes (' + (answers[i] / total * 100) + '%).');
-	for(var i = 0; i < vacantAnswers.length; i++)
-		msg('\'Vacant ' + (i+1) + '\': ' + vacantAnswers[i] + ' votes (' + (vacantAnswers[i] / total * 100) + '%).');
-	for(var i = 0; i < blankAnswers.length; i++)
-		msg('\'Blank ' + (i+1) + '\': ' + blankAnswers[i] + ' votes (' + (blankAnswers[i] / total * 100) + '%).');
+			msg('\'' + possibleAnswers[i] + '\': ' + givenAnswers[i] + ' votes (' + getPercentage(givenAnswers[i], total) + '%).');
+	for(var i = 0; i < givenVacantAnswers.length; i++)
+		msg('\'Vacant ' + (i+1) + '\': ' + givenVacantAnswers[i] + ' votes (' + getPercentage(givenVacantAnswers[i], total) + '%).');
+	for(var i = 0; i < givenBlankAnswers.length; i++)
+		msg('\'Blank ' + (i+1) + '\': ' + givenBlankAnswers[i] + ' votes (' + getPercentage(givenBlankAnswers[i], total) + '%).');
 
 	var numberOfAnswers = 0;
 	for(var i = 0; i < codesThatAnswered.length; i++)
@@ -746,15 +757,20 @@ function showQuestionResult(str) {
 	msg('Number of answers: ' + numberOfAnswers + '/' + accessCodes.length);
 }
 
+/* Get percentage. */
+function getPercentage(n, total) {
+	return n / total * 100;
+}
+
 /* Calculates the total answers given. */
 function calculateTotal() {
 	var total = 0;
-	for(var i = 0; i < answers.length; i++)
-		total += answers[i];
-	for(var i = 0; i < vacantAnswers.length; i++)
-		total += vacantAnswers[i];
-	for(var i = 0; i < blankAnswers.length; i++)
-		total += blankAnswers[i];
+	for(var i = 0; i < givenAnswers.length; i++)
+		total += givenAnswers[i];
+	for(var i = 0; i < givenVacantAnswers.length; i++)
+		total += givenVacantAnswers[i];
+	for(var i = 0; i < givenBlankAnswers.length; i++)
+		total += givenBlankAnswers[i];
 	return total;
 }
 
@@ -774,6 +790,335 @@ function showHelp() {
 		if(commands[i].command != 'help')
 			msg('Command \'' + commands[i].command + '\': ' + commands[i].desc);
 }
+
+
+
+
+
+/* --------------------- UNIT TESTING --------------------- */
+
+//Used to stop console messages when performing unit tests
+var unitTesting = false;
+//Perform unit tests
+if(DEBUG) {
+	unitTesting = true;
+	var result = performUnitTests();
+	if(result)
+		error(result, 'Unit Tests');
+	else {
+		unitTesting = false;
+		msg('Unit tests were successfull.')
+	}
+}
+
+function performUnitTests() {
+	var a = testAccessCodes();
+	var b = testQuestions();
+	var c = testregisterAnswerss();
+
+	clearAnswers();
+	closeQuestion();
+
+	return a || b || c;
+}
+
+function testAccessCodes() {
+	var n = 12;
+	//Test default
+	if(!accessCodes || accessCodes.length > 0)
+		return 'Access codes should be an empty array.';
+
+	initialize([n]);
+
+	//Make sure the correct amount of codes was generated
+	if(!accessCodes || accessCodes.length != n)
+		return 'Access codes should be an array with '+n+' codes.';
+
+	//Make sure each code has the correct format
+	for(var i = 0; i < n; i++)
+		if(!accessCodes[i] || accessCodes[i].length != ACCESS_CODE_LENGTH || validateCode(accessCodes[i]) != i)
+			return 'Access code should be a valid code and have the length ' + ACCESS_CODE_LENGTH + '.';
+
+	//Make sure validateCode doesn't work for other codes
+	for(var i = 0; i < 10; i++)
+		if(validateCode(randomCode()) != -1)
+			return 'Something is wrong with validateCode.';
+
+	//Test import and export
+	var oldCodes = [];
+	for(var i = 0; i < n; i++)
+		oldCodes[i] = accessCodes[i];
+	accessCodes = [];
+	importDynamicString();
+	importAccessCodes([accessCodeDocuments.length-1]);
+	for(var i = 0; i < n; i++)
+		if(oldCodes[i] != accessCodes[i])
+			return 'Import/Export failed.';
+}
+
+function testQuestions() {
+	var a = '';
+	for(var i = 0; i < 35; i++)
+		a += i + ',';
+	a += 'a';
+
+	//Test a question without vacant and blank
+	startQuestion(['q', a, 2, 'no', 'no']);
+	if(question != 'q' || !possibleAnswers || possibleAnswers == [] || numberOfRequired != 2 ||
+			blankIndex != -1 || vacantIndex != -1 || !questionRunning)
+		return 'Was not able to start a question properly.';
+
+	//Test a question with vacant and blank
+	startQuestion(['q', a, 2, 'yes', 'yes']);
+	if(question != 'q' || !possibleAnswers || possibleAnswers == [] || numberOfRequired != 2 ||
+			vacantIndex != 36 || possibleAnswers[36] != 'Vakant' || blankIndex != 37 || 
+			possibleAnswers[37] != 'Blank' || !questionRunning)
+		return 'Was not able to start a question properly.';
+
+	//Test endQuestion
+	endQuestion(false);
+	if(question != '' || possibleAnswers.length != 0 || numberOfRequired != -1 || vacantIndex != -1 ||
+			blankIndex != -1 || questionRunning)
+		return 'Was not able to close a question properly.';
+
+	//Test yes/no question
+	yesNoQuestion('q');
+	if(question != 'q' || !possibleAnswers || possibleAnswers == [] || possibleAnswers.length != 2 ||
+			possibleAnswers[0] != 'ja' || possibleAnswers[1] != 'nej' || numberOfRequired != 1 ||
+			vacantIndex != -1 || blankIndex != -1 || !questionRunning)
+		return 'Was not able to start a yes/no question properly.';
+
+	//Test simple question
+	simpleQuestion(['q', a, 2]);
+	if(question != 'q' || !possibleAnswers || possibleAnswers == [] || numberOfRequired != 2 ||
+			vacantIndex != -1 || blankIndex != -1 || !questionRunning)
+		return 'Was not able to start a simple question properly.';
+
+	//Test the number of possible answers limit
+	a += ',b';
+	startQuestion(['q', a, 2, 'yes', 'yes']);
+	if(question != 'q' || !possibleAnswers || possibleAnswers == [] || numberOfRequired != 2 ||
+			vacantIndex != -1 || blankIndex != -1 || !questionRunning)
+		return 'Was not able to start a question properly.';
+}
+
+function testregisterAnswerss() {
+	var a = testRegisteredAnswersInit();
+	var b = testClearRegisteredAnswers();
+	var c = testCheckValidAnswer();
+	var d = testRegisterAnswer();
+	return a || b || c || d;
+}
+
+function testRegisteredAnswersInit() {
+	initialize([10]);
+	startQuestion(['q', 'a,b,c', 2, 'yes', 'yes']);
+
+	//Test default values when starting a new question
+	if(codesThatAnswered.length !=  10 || givenAnswers.length != 3 || givenVacantAnswers.length != 2 || givenBlankAnswers.length != 2)
+		return 'Default values for the registeredAnswers variables was incorrect.';
+
+	for(var i = 0; i < codesThatAnswered.length; i++)
+		if(codesThatAnswered[i])
+			return 'Codes-that-answered should all default to false.';
+
+	for(var i = 0; i < givenAnswers.length; i++)
+		if(givenAnswers[i] != 0)
+			return 'Answers should all default to 0.';
+
+	for(var i = 0; i < givenVacantAnswers.length; i++)
+		if(givenVacantAnswers[i] != 0)
+			return 'Vacant-answers should all default to 0.';
+
+	for(var i = 0; i < givenBlankAnswers.length; i++)
+		if(givenBlankAnswers[i] != 0)
+			return 'Blank-answers should all default to 0.';
+
+	//Test checkCodeAnsweredQuestion
+	for(var i = 0; i < accessCodes.length; i++)
+		if(checkCodeAnsweredQuestion(accessCodes[i]))
+			return 'No codes should have answered the question.';
+
+	for(var i = 0; i < accessCodes.length; i++)
+		registerAnswers(accessCodes[i], [0]);
+
+	for(var i = 0; i < accessCodes.length; i++)
+		if(!checkCodeAnsweredQuestion(accessCodes[i]))
+			return 'All codes should have answered the question.';
+}
+
+function testClearRegisteredAnswers() {
+	//Test clearAnswers (note that the question remains, but the given answers are wiped out)
+	clearAnswers();
+	if(codesThatAnswered.length !=  10 || givenAnswers.length != 3 || givenVacantAnswers.length != 2 || givenBlankAnswers.length != 2)
+		return 'Default values for the registeredAnswers variables was incorrect.';
+}
+
+function testCheckValidAnswer() {
+	initialize([10]);
+	startQuestion(['q', 'a,b,c', 2, 'yes', 'yes']);
+
+	//Zero answers
+	if(checkValidAnswers([]))
+		return 'Empty answer array should be rejected.';
+
+	//Too few answers
+	if(checkValidAnswers([1]))
+		return 'Too few answers should be rejected.';
+
+	//Too many answers
+	if(checkValidAnswers([0,1,2]))
+		return 'Too many answers should be rejected.';
+
+	//Exact amount of answers
+	if(!checkValidAnswers([0,1]))
+		return 'Exact amount of answers should be accepted.';
+
+	//Question running check
+	questionRunning = false;
+	if(checkValidAnswers([0,1]))
+		return 'Question running = false should prevent answers to be accepted.';
+	questionRunning = true;
+
+	//Answers are integers
+	if(checkValidAnswers(['a', 'b']))
+		return 'Should not accept strings as answers.';
+
+	//Test negative answers
+	if(checkValidAnswers([-1, -2]))
+		return 'Answers should be rejected if negative.';
+
+	//Test too large answers (a,b,c,vacant,blank = 0 to 4)
+	if(checkValidAnswers([5, 5]))
+		return 'Answers should be rejected if too large.';
+	if(checkValidAnswers([4, 5]))
+		return 'Answers should be rejected if too large.';
+
+	//Test two of the same answers (that aren't blank/vacant)
+	if(checkValidAnswers([0,0]))
+		return 'Answers that are the same should be rejected.';
+
+	//Test two of the same answers (that are blank/vacant)
+	if(!checkValidAnswers([3,3]))
+		return 'Two vacants should be accepted.';
+	if(!checkValidAnswers([4,4]))
+		return 'Two blanks should be accepted.';
+
+	//Test vacants/blanks when not enabled
+	startQuestion(['q', 'a,b,c', 2, 'no', 'no']);
+	if(checkValidAnswers([3,3]))
+		return 'Two vacants should not be accepted.';
+	if(checkValidAnswers([4,4]))
+		return 'Two blanks should not be accepted.';
+	if(checkValidAnswers([3,4]))
+		return 'One blank and one vacant should not be accepted.';
+}
+
+function testRegisterAnswer() {
+	initialize([10]);
+	startQuestion(['q', 'a,b,c', 2, 'yes', 'yes']);
+
+	//Test questionRunning
+	questionRunning = false;
+	if(registerAnswers(accessCodes[0], [1,1]))
+		return 'Should not accept answers when no question is running.';
+	questionRunning = true;
+
+	//Test valid accessCode
+	if(registerAnswers(randomCode(), [1,1]))
+		return 'Should not accept answers if invalid code.';
+
+	//Test codesThatAnswered is set to true
+	registerAnswers(accessCodes[0], [1,1]);
+	if(!checkCodeAnsweredQuestion(accessCodes[0]))
+		return 'Register answers must set codesThatAnswered to true.';
+
+	clearAnswers();
+	
+	//Test natural answers
+	for(var i = 0; i < accessCodes.length; i++)
+		registerAnswers(accessCodes[i], [0,1]);
+	if(givenAnswers[0] != accessCodes.length || givenAnswers[1] != accessCodes.length)
+		return 'Did not register natural answers correctly.';
+	for(var i = 0; i < givenAnswers.length; i++)
+		if(i > 1 && givenAnswers[i] != 0)
+			return 'Register should not affect other answers than 0 and 1.';
+
+	clearAnswers();
+
+	//Test all vacants
+	for(var i = 0; i < accessCodes.length; i++)
+		registerAnswers(accessCodes[i], [3,3]);
+	if(givenVacantAnswers.length != 2 || givenVacantAnswers[0] != accessCodes.length ||
+			givenVacantAnswers[1] != accessCodes.length)
+		return 'Was not able to register all vacant answers.';
+	for(var i = 0; i < givenAnswers.length; i++)
+		if(givenAnswers[i] != 0)
+			return 'When registering all vacant answers the givenAnswers should all be 0.';
+
+	clearAnswers();
+
+	//Test all blanks
+	for(var i = 0; i < accessCodes.length; i++)
+		registerAnswers(accessCodes[i], [4,4]);
+	if(givenBlankAnswers.length != 2 || givenBlankAnswers[0] != accessCodes.length ||
+			givenBlankAnswers[1] != accessCodes.length)
+		return 'Was not able to register all blank answers.';
+	for(var i = 0; i < givenAnswers.length; i++)
+		if(givenAnswers[i] != 0)
+			return 'When registering all blank answers the givenAnswers should all be 0.';
+
+	clearAnswers();
+
+	//Try mixed answers
+	registerAnswers(accessCodes[0], [1,0]);
+	registerAnswers(accessCodes[1], [1,3]);
+	registerAnswers(accessCodes[2], [3,4]);
+	registerAnswers(accessCodes[3], [4,4]);
+	registerAnswers(accessCodes[4], [2,1]);
+	registerAnswers(accessCodes[5], [0,1]);
+	registerAnswers(accessCodes[6], [2,1]);
+	registerAnswers(accessCodes[7], [2,3]);
+	registerAnswers(accessCodes[8], [3,4]);
+	registerAnswers(accessCodes[9], [0,1]);
+
+	//Test all codes answered
+	for(var i = 0; i < accessCodes.length; i++)
+		if(!codesThatAnswered[i])
+			return 'All codes should have answered.';
+
+	//Test correct lengths
+	if(givenAnswers.length != 3 || givenVacantAnswers.length != 2 || givenBlankAnswers.length != 2)
+		return 'Answer arrays have the incorrect length.';
+
+	/* Expected result: answers[0] = 3, answers[1] = 6, answers[2] = 3, vacants[0] = 4, vacants[1] = 0
+		blanks[0]= 3, blanks[1] = 1, total = 20 */
+
+	//Test correct answers
+	if(givenAnswers[0] != 3 || givenAnswers[1] != 6 || givenAnswers[2] != 3 || givenVacantAnswers[0] != 4
+			|| givenVacantAnswers[1] != 0 || givenBlankAnswers[0] != 3 || givenBlankAnswers[1] != 1)
+		return 'Registered incorrect values on mixed answers.';
+
+	//Test total
+	if(calculateTotal() != 20)
+		return 'Total should be 20.';
+
+	//Test percentages
+	if(getPercentage(givenAnswers[0], calculateTotal()) != 15 ||
+			getPercentage(givenAnswers[1], calculateTotal()) != 30 ||
+			getPercentage(givenAnswers[2], calculateTotal()) != 15 ||
+			getPercentage(givenVacantAnswers[0], calculateTotal()) != 20 ||
+			getPercentage(givenVacantAnswers[1], calculateTotal()) != 0 ||
+			getPercentage(givenBlankAnswers[0], calculateTotal()) != 15 ||
+			getPercentage(givenBlankAnswers[1], calculateTotal()) != 5)
+		return 'Percentages is incorrect.';
+}
+
+
+
+
+
+/* --------------------- DEBBUGGING --------------------- */
 
 if(DEBUG) {
 	initialize([10]);
